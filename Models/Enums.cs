@@ -27,4 +27,17 @@ namespace AsciiDraw.Models
         Text,
         Line,
     }
+
+    /// <summary>The eight connection points of a rectangle.</summary>
+    public enum Anchor
+    {
+        TopLeft,
+        Top,
+        TopRight,
+        Left,
+        Right,
+        BottomLeft,
+        Bottom,
+        BottomRight,
+    }
 }

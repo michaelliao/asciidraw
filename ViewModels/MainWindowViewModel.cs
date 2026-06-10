@@ -291,7 +291,7 @@ namespace AsciiDraw.ViewModels
             NotifyDocumentChanged();
         }
 
-        /// <summary>Re-derives endpoints of linked lines from their target rectangles.</summary>
+        /// <summary>Re-derives endpoints of linked lines from their anchor points.</summary>
         public void SyncLinkedLines()
         {
             foreach (var l in Document.Elements.OfType<LineElement>())
@@ -300,31 +300,17 @@ namespace AsciiDraw.ViewModels
                 {
                     var r = FindRect(s);
                     if (r == null)
-                    {
                         l.StartLink = null;
-                    }
                     else
-                    {
-                        l.StartOffsetX = Math.Clamp(l.StartOffsetX, 0, r.Width - 1);
-                        l.StartOffsetY = Math.Clamp(l.StartOffsetY, 0, r.Height - 1);
-                        l.X1 = r.X + l.StartOffsetX;
-                        l.Y1 = r.Y + l.StartOffsetY;
-                    }
+                        (l.X1, l.Y1) = r.AnchorCell(l.StartAnchor);
                 }
                 if (l.EndLink is Guid t)
                 {
                     var r = FindRect(t);
                     if (r == null)
-                    {
                         l.EndLink = null;
-                    }
                     else
-                    {
-                        l.EndOffsetX = Math.Clamp(l.EndOffsetX, 0, r.Width - 1);
-                        l.EndOffsetY = Math.Clamp(l.EndOffsetY, 0, r.Height - 1);
-                        l.X2 = r.X + l.EndOffsetX;
-                        l.Y2 = r.Y + l.EndOffsetY;
-                    }
+                        (l.X2, l.Y2) = r.AnchorCell(l.EndAnchor);
                 }
             }
         }
@@ -339,44 +325,67 @@ namespace AsciiDraw.ViewModels
             NotifyDocumentChanged();
         }
 
-        /// <summary>Link or unlink both endpoints based on the rectangles under them.</summary>
-        public void RelinkLine(LineElement l)
+        /// <summary>Topmost rectangle whose bounds (inflated by one cell) contain the cell,
+        /// together with its nearest connection point.</summary>
+        public (RectElement Rect, Anchor Anchor)? FindSnapTarget(int cx, int cy)
         {
-            Relink(l, start: true);
-            Relink(l, start: false);
-        }
-
-        private void Relink(LineElement l, bool start)
-        {
-            int px = start ? l.X1 : l.X2;
-            int py = start ? l.Y1 : l.Y2;
-            RectElement? target = null;
             for (int i = Document.Elements.Count - 1; i >= 0; i--)
             {
-                if (Document.Elements[i] is RectElement r && r.Id != l.Id && r.Contains(px, py))
+                if (Document.Elements[i] is not RectElement r)
+                    continue;
+                if (cx < r.X - 1 || cx > r.X + r.Width || cy < r.Y - 1 || cy > r.Y + r.Height)
+                    continue;
+                Anchor best = Anchor.TopLeft;
+                long bestDist = long.MaxValue;
+                foreach (Anchor a in Enum.GetValues<Anchor>())
                 {
-                    target = r;
-                    break;
+                    var (ax, ay) = r.AnchorCell(a);
+                    long d = (long)(ax - cx) * (ax - cx) + (long)(ay - cy) * (ay - cy);
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        best = a;
+                    }
                 }
+                return (r, best);
             }
+            return null;
+        }
+
+        /// <summary>Moves one endpoint of a line to the given cell, snapping and linking it
+        /// to the nearest connection point when a rectangle is close. Returns the snap target
+        /// (for highlighting) or null when the endpoint is free.</summary>
+        public (RectElement Rect, Anchor Anchor)? SnapLineEndpoint(LineElement l, bool start, int cx, int cy)
+        {
+            var snap = FindSnapTarget(cx, cy);
             if (start)
             {
-                l.StartLink = target?.Id;
-                if (target != null)
+                l.StartLink = snap?.Rect.Id;
+                if (snap.HasValue)
                 {
-                    l.StartOffsetX = px - target.X;
-                    l.StartOffsetY = py - target.Y;
+                    l.StartAnchor = snap.Value.Anchor;
+                    (l.X1, l.Y1) = snap.Value.Rect.AnchorCell(snap.Value.Anchor);
+                }
+                else
+                {
+                    (l.X1, l.Y1) = (cx, cy);
                 }
             }
             else
             {
-                l.EndLink = target?.Id;
-                if (target != null)
+                l.EndLink = snap?.Rect.Id;
+                if (snap.HasValue)
                 {
-                    l.EndOffsetX = px - target.X;
-                    l.EndOffsetY = py - target.Y;
+                    l.EndAnchor = snap.Value.Anchor;
+                    (l.X2, l.Y2) = snap.Value.Rect.AnchorCell(snap.Value.Anchor);
+                }
+                else
+                {
+                    (l.X2, l.Y2) = (cx, cy);
                 }
             }
+            NotifyDocumentChanged();
+            return snap;
         }
 
         // ----- Undo / redo -----

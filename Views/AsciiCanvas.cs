@@ -44,6 +44,8 @@ namespace AsciiDraw.Views
         private (int X, int Y, int W, int H) _resizeOrig;
         private LineElement? _endLine;
         private bool _endIsStart;
+        private RectElement? _snapRect;
+        private Anchor? _snapAnchor;
 
         public AsciiCanvas()
         {
@@ -178,6 +180,20 @@ namespace AsciiDraw.Views
                 }
             }
 
+            // Connection points of the rectangle a dragged line endpoint may snap to.
+            if (_snapRect != null && doc.Elements.Contains(_snapRect))
+            {
+                var portPen = new Pen(SelectionBrush, 1.5);
+                foreach (Anchor a in Enum.GetValues<Anchor>())
+                {
+                    var center = CellCenter(_snapRect.AnchorCell(a));
+                    bool active = a == _snapAnchor;
+                    double radius = active ? 4.5 : 3.5;
+                    ctx.DrawEllipse(active ? SelectionBrush : Brushes.White, portPen,
+                        center, radius, radius);
+                }
+            }
+
             if (_drag == DragMode.Rubber)
             {
                 var rubber = new Rect(_pressPoint, _currentPoint).Normalize();
@@ -280,6 +296,11 @@ namespace AsciiDraw.Views
                     vm.PushUndo();
                     var l = new LineElement { X1 = cell.X, Y1 = cell.Y, X2 = cell.X, Y2 = cell.Y };
                     vm.AddElement(l);
+                    var snap = vm.SnapLineEndpoint(l, start: true, cell.X, cell.Y);
+                    l.X2 = l.X1;
+                    l.Y2 = l.Y1;
+                    _snapRect = snap?.Rect;
+                    _snapAnchor = snap?.Anchor;
                     _createElement = l;
                     _drag = DragMode.Create;
                     break;
@@ -355,9 +376,9 @@ namespace AsciiDraw.Views
                     }
                     else if (_createElement is LineElement l)
                     {
-                        l.X2 = cell.X;
-                        l.Y2 = cell.Y;
-                        vm.NotifyDocumentChanged();
+                        var snap = vm.SnapLineEndpoint(l, start: false, cell.X, cell.Y);
+                        _snapRect = snap?.Rect;
+                        _snapAnchor = snap?.Anchor;
                     }
                     break;
 
@@ -385,17 +406,9 @@ namespace AsciiDraw.Views
                 case DragMode.LineEnd:
                     if (_endLine != null)
                     {
-                        if (_endIsStart)
-                        {
-                            _endLine.X1 = cell.X;
-                            _endLine.Y1 = cell.Y;
-                        }
-                        else
-                        {
-                            _endLine.X2 = cell.X;
-                            _endLine.Y2 = cell.Y;
-                        }
-                        vm.NotifyDocumentChanged();
+                        var snap = vm.SnapLineEndpoint(_endLine, _endIsStart, cell.X, cell.Y);
+                        _snapRect = snap?.Rect;
+                        _snapAnchor = snap?.Anchor;
                     }
                     break;
 
@@ -456,10 +469,6 @@ namespace AsciiDraw.Views
                                 r.Text = "Text";
                         }
                     }
-                    else if (_createElement is LineElement l)
-                    {
-                        vm.RelinkLine(l);
-                    }
                     if (_createElement != null)
                         vm.SetSelection(new[] { _createElement.Id });
                     vm.CurrentTool = Tool.Select;
@@ -476,8 +485,6 @@ namespace AsciiDraw.Views
                     break;
 
                 case DragMode.LineEnd:
-                    if (_endLine != null)
-                        vm.RelinkLine(_endLine);
                     vm.GeometryChanged();
                     break;
 
@@ -507,6 +514,8 @@ namespace AsciiDraw.Views
             _createElement = null;
             _resizeRect = null;
             _endLine = null;
+            _snapRect = null;
+            _snapAnchor = null;
             e.Pointer.Capture(null);
             InvalidateVisual();
         }
