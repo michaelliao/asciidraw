@@ -302,7 +302,7 @@ namespace AsciiDraw.ViewModels
                     if (r == null)
                         l.StartLink = null;
                     else
-                        (l.X1, l.Y1) = r.AnchorCell(l.StartAnchor);
+                        (l.X1, l.Y1) = r.ConnectionCell(l.StartAnchor);
                 }
                 if (l.EndLink is Guid t)
                 {
@@ -310,7 +310,7 @@ namespace AsciiDraw.ViewModels
                     if (r == null)
                         l.EndLink = null;
                     else
-                        (l.X2, l.Y2) = r.AnchorCell(l.EndAnchor);
+                        (l.X2, l.Y2) = r.ConnectionCell(l.EndAnchor);
                 }
             }
         }
@@ -364,7 +364,7 @@ namespace AsciiDraw.ViewModels
                 if (snap.HasValue)
                 {
                     l.StartAnchor = snap.Value.Anchor;
-                    (l.X1, l.Y1) = snap.Value.Rect.AnchorCell(snap.Value.Anchor);
+                    (l.X1, l.Y1) = snap.Value.Rect.ConnectionCell(snap.Value.Anchor);
                 }
                 else
                 {
@@ -377,7 +377,7 @@ namespace AsciiDraw.ViewModels
                 if (snap.HasValue)
                 {
                     l.EndAnchor = snap.Value.Anchor;
-                    (l.X2, l.Y2) = snap.Value.Rect.AnchorCell(snap.Value.Anchor);
+                    (l.X2, l.Y2) = snap.Value.Rect.ConnectionCell(snap.Value.Anchor);
                 }
                 else
                 {

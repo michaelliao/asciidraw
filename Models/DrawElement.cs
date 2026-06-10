@@ -59,6 +59,15 @@ namespace AsciiDraw.Models
                 _ => (xr, yb),
             };
         }
+
+        /// <summary>Cell where a linked line endpoint actually sits: one cell outside the
+        /// anchor, so the line never overwrites the rectangle's border character.</summary>
+        public (int X, int Y) ConnectionCell(Anchor a)
+        {
+            var (x, y) = AnchorCell(a);
+            var (dx, dy) = LineElement.AnchorDir(a);
+            return (x + dx, y + dy);
+        }
     }
 
     public class LineElement : DrawElement
@@ -98,7 +107,9 @@ namespace AsciiDraw.Models
             _ => (1, 0),
         };
 
-        private const int StubLength = 2;
+        // The endpoint already sits one cell outside the border (ConnectionCell), so a
+        // one-cell stub puts the first bend two cells out from the rectangle.
+        private const int StubLength = 1;
 
         /// <summary>Orthogonal waypoints of the step route from start to end.
         /// A linked endpoint first leaves its rectangle through a short stub in the
