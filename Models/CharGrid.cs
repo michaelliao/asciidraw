@@ -59,15 +59,86 @@ namespace AsciiDraw.Models
             _ => ('─', '│'),
         };
 
+        // ----- Box-drawing merging -----
+        // Every line char is a set of arms pointing N/S/E/W. When an element draws over
+        // existing line art, the arms are unioned and the union's junction char is emitted
+        // (e.g. '│' under '─' becomes '┼'). Junctions always use light-style glyphs.
+
+        [Flags]
+        private enum Arms
+        {
+            None = 0,
+            N = 1,
+            S = 2,
+            E = 4,
+            W = 8,
+            All = N | S | E | W,
+        }
+
+        private static Arms CharArms(char c) => c switch
+        {
+            '─' or '╌' or '┈' => Arms.E | Arms.W,
+            '│' or '╎' or '┊' => Arms.N | Arms.S,
+            '┌' => Arms.E | Arms.S,
+            '┐' => Arms.W | Arms.S,
+            '└' => Arms.N | Arms.E,
+            '┘' => Arms.N | Arms.W,
+            '├' => Arms.N | Arms.S | Arms.E,
+            '┤' => Arms.N | Arms.S | Arms.W,
+            '┬' => Arms.E | Arms.W | Arms.S,
+            '┴' => Arms.E | Arms.W | Arms.N,
+            '┼' => Arms.All,
+            _ => Arms.None,
+        };
+
+        private static char ArmsChar(Arms a) => a switch
+        {
+            Arms.N or Arms.S or (Arms.N | Arms.S) => '│',
+            Arms.E or Arms.W or (Arms.E | Arms.W) => '─',
+            Arms.E | Arms.S => '┌',
+            Arms.W | Arms.S => '┐',
+            Arms.N | Arms.E => '└',
+            Arms.N | Arms.W => '┘',
+            Arms.N | Arms.S | Arms.E => '├',
+            Arms.N | Arms.S | Arms.W => '┤',
+            Arms.E | Arms.W | Arms.S => '┬',
+            Arms.E | Arms.W | Arms.N => '┴',
+            _ => '┼',
+        };
+
+        /// <summary>Draws a line char, merging with line art already in the cell.
+        /// <paramref name="keep"/> restricts which existing arms survive — a solid
+        /// rectangle keeps only arms pointing away from its interior.</summary>
+        private void MergeSet(int x, int y, char c, Arms keep = Arms.All)
+        {
+            var arms = CharArms(c);
+            if (arms == Arms.None)
+            {
+                Set(x, y, c);
+                return;
+            }
+            var existing = CharArms(Get(x, y)) & keep;
+            if (existing == Arms.None || (existing | arms) == arms)
+                Set(x, y, c);
+            else
+                Set(x, y, ArmsChar(existing | arms));
+        }
+
         private void DrawRect(RectElement r)
         {
             int x1 = r.X, y1 = r.Y;
             int x2 = r.X + r.Width - 1, y2 = r.Y + r.Height - 1;
+            bool solid = r.FillStyle == FillStyle.Solid;
+            bool hasBorder = r.LineStyle != LineStyle.None && r.Width >= 2 && r.Height >= 2;
 
-            if (r.FillStyle == FillStyle.Solid)
+            if (solid)
             {
-                for (int y = y1; y <= y2; y++)
-                    for (int x = x1; x <= x2; x++)
+                // With a border the fill only blanks the interior; the border cells
+                // themselves merge with the outward arms of whatever lies beneath.
+                int fx1 = hasBorder ? x1 + 1 : x1, fy1 = hasBorder ? y1 + 1 : y1;
+                int fx2 = hasBorder ? x2 - 1 : x2, fy2 = hasBorder ? y2 - 1 : y2;
+                for (int y = fy1; y <= fy2; y++)
+                    for (int x = fx1; x <= fx2; x++)
                         Set(x, y, ' ');
             }
 
@@ -76,32 +147,36 @@ namespace AsciiDraw.Models
                 var (hc, vc) = StyleChars(r.LineStyle);
                 if (r.Width == 1 && r.Height == 1)
                 {
-                    Set(x1, y1, hc);
+                    MergeSet(x1, y1, hc);
                 }
                 else if (r.Height == 1)
                 {
-                    for (int x = x1; x <= x2; x++) Set(x, y1, hc);
+                    for (int x = x1; x <= x2; x++) MergeSet(x, y1, hc);
                 }
                 else if (r.Width == 1)
                 {
-                    for (int y = y1; y <= y2; y++) Set(x1, y, vc);
+                    for (int y = y1; y <= y2; y++) MergeSet(x1, y, vc);
                 }
                 else
                 {
+                    Arms top = solid ? Arms.N : Arms.All;
+                    Arms bottom = solid ? Arms.S : Arms.All;
+                    Arms left = solid ? Arms.W : Arms.All;
+                    Arms right = solid ? Arms.E : Arms.All;
                     for (int x = x1 + 1; x < x2; x++)
                     {
-                        Set(x, y1, hc);
-                        Set(x, y2, hc);
+                        MergeSet(x, y1, hc, top);
+                        MergeSet(x, y2, hc, bottom);
                     }
                     for (int y = y1 + 1; y < y2; y++)
                     {
-                        Set(x1, y, vc);
-                        Set(x2, y, vc);
+                        MergeSet(x1, y, vc, left);
+                        MergeSet(x2, y, vc, right);
                     }
-                    Set(x1, y1, '┌');
-                    Set(x2, y1, '┐');
-                    Set(x1, y2, '└');
-                    Set(x2, y2, '┘');
+                    MergeSet(x1, y1, '┌', solid ? Arms.N | Arms.W : Arms.All);
+                    MergeSet(x2, y1, '┐', solid ? Arms.N | Arms.E : Arms.All);
+                    MergeSet(x1, y2, '└', solid ? Arms.S | Arms.W : Arms.All);
+                    MergeSet(x2, y2, '┘', solid ? Arms.S | Arms.E : Arms.All);
                 }
             }
 
@@ -205,7 +280,7 @@ namespace AsciiDraw.Models
                     else
                         c = Corner(prev, cur, next);
                 }
-                Set(cur.X, cur.Y, c);
+                MergeSet(cur.X, cur.Y, c);
             }
 
             if (n > 1)
