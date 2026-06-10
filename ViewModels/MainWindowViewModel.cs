@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using AsciiDraw.Models;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -729,6 +730,19 @@ namespace AsciiDraw.ViewModels
             _filePath = file.TryGetLocalPath();
             UpdateTitle();
             SelectionStatus = $"Saved {file.Name}";
+        }
+
+        [RelayCommand]
+        private async Task CopyText()
+        {
+            var clipboard = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
+                .MainWindow?.Clipboard;
+            if (clipboard == null)
+                return;
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(DataFormat.Text, Exporter.ToText(Document)));
+            await clipboard.SetDataAsync(transfer);
+            SelectionStatus = "Copied to clipboard";
         }
 
         [RelayCommand]

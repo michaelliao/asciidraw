@@ -50,6 +50,7 @@
                     <Button Classes="tb" Content="New" Command="{Binding NewFileCommand}" ToolTip.Tip="New (Ctrl+N)"/>
                     <Button Classes="tb" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open (Ctrl+O)"/>
                     <Button Classes="tb" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)"/>
+                    <Button Classes="tb" Content="Copy" Command="{Binding CopyTextCommand}" ToolTip.Tip="Copy text to clipboard"/>
                     <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
                     <Button Classes="tb" Content="TXT" Command="{Binding ExportTxtCommand}" ToolTip.Tip="Export as plain text"/>
                     <Button Classes="tb" Content="SVG" Command="{Binding ExportSvgCommand}" ToolTip.Tip="Export as SVG"/>
