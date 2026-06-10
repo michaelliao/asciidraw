@@ -147,20 +147,26 @@ namespace AsciiDraw.Models
                 pts.Add(s1);
             if (linked1 && linked2)
             {
-                // Both ends linked: a Z-route bending halfway between the stubs, so the
-                // long leg never runs through either rectangle (each stub leg stays in
-                // its own rect's free column/row).
-                if (d1.Y == 0)
+                bool horizontal1 = d1.Y == 0, horizontal2 = d2.Y == 0;
+                if (horizontal1 && horizontal2)
                 {
+                    // Both ports exit horizontally: Z-route bending halfway between the
+                    // stubs, so the long leg never runs through either rectangle.
                     int midY = (s1.Y + s2.Y) / 2;
                     pts.Add((s1.X, midY));
                     pts.Add((s2.X, midY));
                 }
-                else
+                else if (!horizontal1 && !horizontal2)
                 {
                     int midX = (s1.X + s2.X) / 2;
                     pts.Add((midX, s1.Y));
                     pts.Add((midX, s2.Y));
+                }
+                else
+                {
+                    // Mixed directions: a single L-bend that leaves the first stub and
+                    // meets the second stub each at a right angle.
+                    pts.Add(horizontal1 ? (s1.X, s2.Y) : (s2.X, s1.Y));
                 }
             }
             else
