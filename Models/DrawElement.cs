@@ -28,6 +28,8 @@ namespace AsciiDraw.Models
         public LineStyle LineStyle { get; set; } = LineStyle.Normal;
         public FillStyle FillStyle { get; set; } = FillStyle.Transparent;
         public string Text { get; set; } = "";
+        public VAlign VerticalAlign { get; set; } = VAlign.Center;
+        public HAlign HorizontalAlign { get; set; } = HAlign.Center;
 
         [JsonIgnore]
         public bool IsTextBox => LineStyle == LineStyle.None;
@@ -143,10 +145,32 @@ namespace AsciiDraw.Models
             var pts = new List<(int X, int Y)> { (X1, Y1) };
             if (linked1)
                 pts.Add(s1);
-            // After a horizontal stub the route turns vertical first (and vice versa);
-            // with only the end linked, bend so the last leg meets the stub at a right angle.
-            bool verticalFirst = linked1 ? d1.Y == 0 : d2.Y != 0;
-            pts.Add(verticalFirst ? (s1.X, s2.Y) : (s2.X, s1.Y));
+            if (linked1 && linked2)
+            {
+                // Both ends linked: a Z-route bending halfway between the stubs, so the
+                // long leg never runs through either rectangle (each stub leg stays in
+                // its own rect's free column/row).
+                if (d1.Y == 0)
+                {
+                    int midY = (s1.Y + s2.Y) / 2;
+                    pts.Add((s1.X, midY));
+                    pts.Add((s2.X, midY));
+                }
+                else
+                {
+                    int midX = (s1.X + s2.X) / 2;
+                    pts.Add((midX, s1.Y));
+                    pts.Add((midX, s2.Y));
+                }
+            }
+            else
+            {
+                // One linked end: a single L-bend. After a horizontal stub the route
+                // turns vertical first (and vice versa); with only the end linked,
+                // bend so the last leg meets the stub at a right angle.
+                bool verticalFirst = linked1 ? d1.Y == 0 : d2.Y != 0;
+                pts.Add(verticalFirst ? (s1.X, s2.Y) : (s2.X, s1.Y));
+            }
             pts.Add(s2);
             if (linked2)
                 pts.Add((X2, Y2));

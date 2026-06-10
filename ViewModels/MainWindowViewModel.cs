@@ -199,6 +199,8 @@ namespace AsciiDraw.ViewModels
             OnPropertyChanged(nameof(SelName));
             OnPropertyChanged(nameof(SelBorderStyle));
             OnPropertyChanged(nameof(SelFill));
+            OnPropertyChanged(nameof(SelVAlign));
+            OnPropertyChanged(nameof(SelHAlign));
             OnPropertyChanged(nameof(SelText));
             OnPropertyChanged(nameof(SelLineStyle));
             OnPropertyChanged(nameof(SelStartArrow));
@@ -603,6 +605,8 @@ namespace AsciiDraw.ViewModels
         public string[] LineStyles { get; } = { "Normal", "Dashed", "Dotted" };
         public string[] FillStyles { get; } = { "Transparent", "Solid" };
         public string[] ArrowStyles { get; } = { "None", "Triangle" };
+        public string[] VAligns { get; } = { "Top", "Center", "Bottom" };
+        public string[] HAligns { get; } = { "Left", "Center", "Right" };
 
         public string? SelName
         {
@@ -645,6 +649,34 @@ namespace AsciiDraw.ViewModels
                     return;
                 PushUndo();
                 r.FillStyle = Enum.Parse<FillStyle>(value);
+                NotifyDocumentChanged();
+            }
+        }
+
+        public string? SelVAlign
+        {
+            get => SingleRect?.VerticalAlign.ToString();
+            set
+            {
+                var r = SingleRect;
+                if (r == null || value == null || r.VerticalAlign.ToString() == value)
+                    return;
+                PushUndo();
+                r.VerticalAlign = Enum.Parse<VAlign>(value);
+                NotifyDocumentChanged();
+            }
+        }
+
+        public string? SelHAlign
+        {
+            get => SingleRect?.HorizontalAlign.ToString();
+            set
+            {
+                var r = SingleRect;
+                if (r == null || value == null || r.HorizontalAlign.ToString() == value)
+                    return;
+                PushUndo();
+                r.HorizontalAlign = Enum.Parse<HAlign>(value);
                 NotifyDocumentChanged();
             }
         }

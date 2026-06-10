@@ -191,11 +191,21 @@ namespace AsciiDraw.Models
                     var lines = Wrap(r.Text, iw);
                     if (lines.Count > ih)
                         lines = lines.Take(ih).ToList();
-                    int top = iy + (ih - lines.Count) / 2;
+                    int top = iy + r.VerticalAlign switch
+                    {
+                        VAlign.Top => 0,
+                        VAlign.Bottom => ih - lines.Count,
+                        _ => (ih - lines.Count) / 2,
+                    };
                     for (int i = 0; i < lines.Count; i++)
                     {
                         string ln = lines[i];
-                        int left = ix + Math.Max(0, (iw - ln.Length) / 2);
+                        int left = ix + Math.Max(0, r.HorizontalAlign switch
+                        {
+                            HAlign.Left => 0,
+                            HAlign.Right => iw - ln.Length,
+                            _ => (iw - ln.Length) / 2,
+                        });
                         for (int j = 0; j < ln.Length && j < iw; j++)
                             Set(left + j, top + i, ln[j]);
                     }

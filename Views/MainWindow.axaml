@@ -147,6 +147,12 @@
                         <TextBlock Classes="label" Text="Fill"/>
                         <ComboBox ItemsSource="{Binding FillStyles}" SelectedItem="{Binding SelFill}"
                                   HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Vertical Align"/>
+                        <ComboBox ItemsSource="{Binding VAligns}" SelectedItem="{Binding SelVAlign}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Horizontal Align"/>
+                        <ComboBox ItemsSource="{Binding HAligns}" SelectedItem="{Binding SelHAlign}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
                         <TextBlock Classes="label" Text="Text"/>
                         <TextBox Text="{Binding SelText}" AcceptsReturn="True" TextWrapping="Wrap"
                                  Height="110" FontSize="12"

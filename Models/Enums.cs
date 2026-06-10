@@ -28,6 +28,20 @@ namespace AsciiDraw.Models
         Line,
     }
 
+    public enum VAlign
+    {
+        Top,
+        Center,
+        Bottom,
+    }
+
+    public enum HAlign
+    {
+        Left,
+        Center,
+        Right,
+    }
+
     /// <summary>The eight connection points of a rectangle.</summary>
     public enum Anchor
     {
