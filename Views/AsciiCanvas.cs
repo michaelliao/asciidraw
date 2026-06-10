@@ -26,6 +26,21 @@ namespace AsciiDraw.Views
         public double CellHeight { get; private set; } = 17;
         public event Action? MetricsChanged;
 
+        // Indexed by handle: 0 TL, 1 T, 2 TR, 3 R, 4 BR, 5 B, 6 BL, 7 L.
+        private static readonly Cursor[] HandleCursors =
+        {
+            new(StandardCursorType.TopLeftCorner),
+            new(StandardCursorType.SizeNorthSouth),
+            new(StandardCursorType.TopRightCorner),
+            new(StandardCursorType.SizeWestEast),
+            new(StandardCursorType.BottomRightCorner),
+            new(StandardCursorType.SizeNorthSouth),
+            new(StandardCursorType.BottomLeftCorner),
+            new(StandardCursorType.SizeWestEast),
+        };
+        private static readonly Cursor CrossCursor = new(StandardCursorType.Cross);
+        private static readonly Cursor MoveCursor = new(StandardCursorType.SizeAll);
+
         private static readonly Color SelectionColor = Color.FromRgb(0x2F, 0x7D, 0xF6);
         private static readonly IBrush SelectionBrush = new SolidColorBrush(SelectionColor);
         private static readonly IBrush SelectionFillBrush = new SolidColorBrush(SelectionColor, 0.12);
@@ -101,8 +116,40 @@ namespace AsciiDraw.Views
         private void UpdateCursor()
         {
             Cursor = _vm?.CurrentTool is Tool.Rect or Tool.Text or Tool.Line
-                ? new Cursor(StandardCursorType.Cross)
+                ? CrossCursor
                 : Cursor.Default;
+        }
+
+        private void UpdateHoverCursor(Point pt)
+        {
+            var vm = _vm!;
+            if (vm.CurrentTool != Tool.Select)
+            {
+                Cursor = CrossCursor;
+                return;
+            }
+            if (vm.Selection.Count == 1)
+            {
+                switch (vm.SingleSelected)
+                {
+                    case RectElement r:
+                        int hi = HitHandle(r, pt);
+                        if (hi >= 0)
+                        {
+                            Cursor = HandleCursors[hi];
+                            return;
+                        }
+                        break;
+                    case LineElement l:
+                        if (HitLineEnd(l, pt) > 0)
+                        {
+                            Cursor = MoveCursor;
+                            return;
+                        }
+                        break;
+                }
+            }
+            Cursor = Cursor.Default;
         }
 
         protected override Size MeasureOverride(Size availableSize)
@@ -362,6 +409,9 @@ namespace AsciiDraw.Views
             var cell = CellAt(pt);
             _currentPoint = pt;
             vm.CursorStatus = $"{cell.X}, {cell.Y}";
+
+            if (_drag == DragMode.None)
+                UpdateHoverCursor(pt);
 
             switch (_drag)
             {
