@@ -477,6 +477,71 @@ namespace AsciiDraw.ViewModels
             Document.Groups.RemoveAll(g => Document.Elements.All(e => e.GroupId != g.Id));
         }
 
+        /// <summary>Moves a dragged layer row (element or whole group) to the gap above
+        /// layer row <paramref name="gapRow"/> (Layers.Count = below the last row).
+        /// An element dropped strictly inside a group's block joins that group; one
+        /// dragged out of its group leaves it. Groups never nest.</summary>
+        public void ReorderLayers(LayerItem dragged, int gapRow)
+        {
+            // Elements in displayed order (topmost first), with the visual position of
+            // every row gap. Group header rows contribute no element of their own.
+            var visual = new List<DrawElement>();
+            var gapToVisual = new int[Layers.Count + 1];
+            for (int i = 0; i < Layers.Count; i++)
+            {
+                gapToVisual[i] = visual.Count;
+                if (!Layers[i].IsGroup)
+                {
+                    var el = Document.Elements.FirstOrDefault(e => e.Id == Layers[i].Id);
+                    if (el != null)
+                        visual.Add(el);
+                }
+            }
+            gapToVisual[Layers.Count] = visual.Count;
+            int insertAt = gapToVisual[Math.Clamp(gapRow, 0, Layers.Count)];
+
+            var block = dragged.IsGroup
+                ? visual.Where(e => e.GroupId == dragged.Id).ToList()
+                : visual.Where(e => e.Id == dragged.Id).ToList();
+            if (block.Count == 0)
+                return;
+
+            int removedBefore = block.Count(b => visual.IndexOf(b) < insertAt);
+            var rest = visual.Where(e => !block.Contains(e)).ToList();
+            int pos = Math.Clamp(insertAt - removedBefore, 0, rest.Count);
+
+            var above = pos > 0 ? rest[pos - 1] : null;
+            var below = pos < rest.Count ? rest[pos] : null;
+            Guid? targetGroup = above?.GroupId != null && above.GroupId == below?.GroupId
+                ? above.GroupId
+                : null;
+
+            if (dragged.IsGroup && targetGroup != null)
+            {
+                // Groups don't nest: drop below the surrounding block instead.
+                while (pos < rest.Count && rest[pos].GroupId == targetGroup)
+                    pos++;
+                targetGroup = null;
+            }
+
+            Guid? newGroupId = dragged.IsGroup ? block[0].GroupId : targetGroup;
+            bool groupChanges = !dragged.IsGroup && block[0].GroupId != newGroupId;
+
+            var newVisual = new List<DrawElement>(rest);
+            newVisual.InsertRange(pos, block);
+            if (!groupChanges && newVisual.SequenceEqual(visual))
+                return;
+
+            PushUndo();
+            if (!dragged.IsGroup)
+                block[0].GroupId = newGroupId;
+            Document.Elements.Clear();
+            for (int i = newVisual.Count - 1; i >= 0; i--)
+                Document.Elements.Add(newVisual[i]);
+            RemoveEmptyGroups();
+            NotifyStructureChanged();
+        }
+
         // ----- Layers panel -----
 
         public void RebuildLayers()

@@ -101,6 +101,14 @@
                             <Setter Property="Padding" Value="8,4"/>
                             <Setter Property="MinHeight" Value="0"/>
                         </Style>
+                        <Style Selector="ListBoxItem.drop-above">
+                            <Setter Property="BorderBrush" Value="#2F7DF6"/>
+                            <Setter Property="BorderThickness" Value="0,2,0,0"/>
+                        </Style>
+                        <Style Selector="ListBoxItem.drop-below">
+                            <Setter Property="BorderBrush" Value="#2F7DF6"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                        </Style>
                     </ListBox.Styles>
                 </ListBox>
             </DockPanel>
@@ -141,7 +149,8 @@
                                   HorizontalAlignment="Stretch" FontSize="12"/>
                         <TextBlock Classes="label" Text="Text"/>
                         <TextBox Text="{Binding SelText}" AcceptsReturn="True" TextWrapping="Wrap"
-                                 Height="110" FontSize="12" FontFamily="Cascadia Mono,Consolas,Courier New"/>
+                                 Height="110" FontSize="12"
+                                 FontFamily="fonts:asciidraw#Maple Mono"/>
                     </StackPanel>
 
                     <!-- Line properties -->

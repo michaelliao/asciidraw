@@ -20,7 +20,7 @@ namespace AsciiDraw.Views
     {
         private MainWindowViewModel? _vm;
 
-        private readonly Typeface _typeface = new("Cascadia Mono,Consolas,Courier New");
+        private readonly Typeface _typeface = new(AppFonts.Mono);
         private double _fontSize = 14;
         public double CellWidth { get; private set; } = 8;
         public double CellHeight { get; private set; } = 17;

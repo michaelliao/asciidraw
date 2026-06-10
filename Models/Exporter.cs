@@ -10,7 +10,8 @@ namespace AsciiDraw.Models
 {
     public static class Exporter
     {
-        private const string FontFallbacks = "Cascadia Mono,Consolas,Courier New";
+        private const string SvgFontFamily =
+            AppFonts.FullFamilyName + "," + AppFonts.FamilyName + ",Cascadia Mono,Consolas,Courier New";
 
         public static string ToText(DrawDocument doc)
         {
@@ -48,7 +49,7 @@ namespace AsciiDraw.Models
             sb.AppendLine("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
             sb.AppendLine(string.Format(ci,
                 "<g font-family=\"{0},monospace\" font-size=\"{1}\" fill=\"black\" xml:space=\"preserve\" style=\"white-space:pre\">",
-                FontFallbacks, fontSize));
+                SvgFontFamily, fontSize));
             for (int y = minY; y <= maxY; y++)
             {
                 string line = grid.RowString(y).Substring(minX, cols).TrimEnd();
@@ -73,7 +74,7 @@ namespace AsciiDraw.Models
             int cols = maxX - minX + 1, rows = maxY - minY + 1;
 
             const double fontSize = 16;
-            var typeface = new Typeface(FontFallbacks);
+            var typeface = new Typeface(AppFonts.Mono);
             var probe = new FormattedText("0", CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, typeface, fontSize, Brushes.Black);
             double cw = probe.Width;

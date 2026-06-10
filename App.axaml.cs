@@ -2,10 +2,10 @@ using AsciiDraw.ViewModels;
 using AsciiDraw.Views;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using System.Linq;
+using Avalonia.Media;
+using Avalonia.Media.Fonts;
+using System;
 
 namespace AsciiDraw
 {
@@ -18,6 +18,10 @@ namespace AsciiDraw
 
         public override void OnFrameworkInitializationCompleted()
         {
+            FontManager.Current.AddFontCollection(new EmbeddedFontCollection(
+                new Uri("fonts:asciidraw"),
+                new Uri("avares://AsciiDraw/Assets")));
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow = new MainWindow
