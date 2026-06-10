@@ -150,17 +150,37 @@ namespace AsciiDraw.Models
                 bool horizontal1 = d1.Y == 0, horizontal2 = d2.Y == 0;
                 if (horizontal1 && horizontal2)
                 {
-                    // Both ports exit horizontally: Z-route bending halfway between the
-                    // stubs, so the long leg never runs through either rectangle.
-                    int midY = (s1.Y + s2.Y) / 2;
-                    pts.Add((s1.X, midY));
-                    pts.Add((s2.X, midY));
+                    // Ports facing each other with room between them: the minimal
+                    // 3-segment Z bending halfway between the connection points.
+                    // Otherwise both stub legs are needed and the route bends halfway
+                    // between the stubs, so the long leg never runs through either rect.
+                    if (d1.X != d2.X && Math.Sign(X2 - X1) == d1.X && Math.Abs(X2 - X1) >= 2)
+                    {
+                        int midX = (X1 + X2) / 2;
+                        pts.Add((midX, Y1));
+                        pts.Add((midX, Y2));
+                    }
+                    else
+                    {
+                        int midY = (s1.Y + s2.Y) / 2;
+                        pts.Add((s1.X, midY));
+                        pts.Add((s2.X, midY));
+                    }
                 }
                 else if (!horizontal1 && !horizontal2)
                 {
-                    int midX = (s1.X + s2.X) / 2;
-                    pts.Add((midX, s1.Y));
-                    pts.Add((midX, s2.Y));
+                    if (d1.Y != d2.Y && Math.Sign(Y2 - Y1) == d1.Y && Math.Abs(Y2 - Y1) >= 2)
+                    {
+                        int midY = (Y1 + Y2) / 2;
+                        pts.Add((X1, midY));
+                        pts.Add((X2, midY));
+                    }
+                    else
+                    {
+                        int midX = (s1.X + s2.X) / 2;
+                        pts.Add((midX, s1.Y));
+                        pts.Add((midX, s2.Y));
+                    }
                 }
                 else
                 {
