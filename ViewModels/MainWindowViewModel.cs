@@ -601,8 +601,8 @@ namespace AsciiDraw.ViewModels
 
         // ----- Properties panel proxies -----
 
-        public string[] BorderStyles { get; } = { "Normal", "Dashed", "Dotted", "None" };
-        public string[] LineStyles { get; } = { "Normal", "Dashed", "Dotted" };
+        public string[] BorderStyles { get; } = { "Normal", "Bold", "Double", "None" };
+        public string[] LineStyles { get; } = { "Normal", "Bold", "Double" };
         public string[] FillStyles { get; } = { "Transparent", "Solid" };
         public string[] ArrowStyles { get; } = { "None", "Triangle" };
         public string[] VAligns { get; } = { "Top", "Center", "Bottom" };

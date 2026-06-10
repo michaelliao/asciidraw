@@ -52,77 +52,127 @@ namespace AsciiDraw.Models
             return grid;
         }
 
-        private static (char H, char V) StyleChars(LineStyle s) => s switch
+        // ----- Weighted box-drawing merging -----
+        // A cell's line art is four arms (N/S/E/W), each with a weight:
+        // 0 none, 1 light, 2 heavy (Bold), 3 double. A key packs the four
+        // weights into a byte (N | S<<2 | E<<4 | W<<6). Drawing over existing
+        // line art unions the arms per direction (taking the heavier weight)
+        // and emits the glyph for the union, so '│' under '━' becomes '┿'.
+        // Unicode has no heavy×double junction glyphs, so those fall back to
+        // the nearest match, preferring double ('╬' for a full crossing).
+
+        private const int KeepAll = 0xFF;
+        private const int KeepN = 0b0000_0011;
+        private const int KeepS = 0b0000_1100;
+        private const int KeepE = 0b0011_0000;
+        private const int KeepW = 0b1100_0000;
+
+        private static int Key(int n, int s, int e, int w) => n | (s << 2) | (e << 4) | (w << 6);
+
+        private static readonly (char C, int N, int S, int E, int W)[] CharTable =
         {
-            LineStyle.Dashed => ('╌', '╎'),
-            LineStyle.Dotted => ('┈', '┊'),
-            _ => ('─', '│'),
+            // straights and half-lines (light/heavy)
+            ('─', 0, 0, 1, 1), ('━', 0, 0, 2, 2), ('│', 1, 1, 0, 0), ('┃', 2, 2, 0, 0),
+            ('╴', 0, 0, 0, 1), ('╵', 1, 0, 0, 0), ('╶', 0, 0, 1, 0), ('╷', 0, 1, 0, 0),
+            ('╸', 0, 0, 0, 2), ('╹', 2, 0, 0, 0), ('╺', 0, 0, 2, 0), ('╻', 0, 2, 0, 0),
+            ('╼', 0, 0, 2, 1), ('╽', 1, 2, 0, 0), ('╾', 0, 0, 1, 2), ('╿', 2, 1, 0, 0),
+            // corners (light/heavy)
+            ('┌', 0, 1, 1, 0), ('┍', 0, 1, 2, 0), ('┎', 0, 2, 1, 0), ('┏', 0, 2, 2, 0),
+            ('┐', 0, 1, 0, 1), ('┑', 0, 1, 0, 2), ('┒', 0, 2, 0, 1), ('┓', 0, 2, 0, 2),
+            ('└', 1, 0, 1, 0), ('┕', 1, 0, 2, 0), ('┖', 2, 0, 1, 0), ('┗', 2, 0, 2, 0),
+            ('┘', 1, 0, 0, 1), ('┙', 1, 0, 0, 2), ('┚', 2, 0, 0, 1), ('┛', 2, 0, 0, 2),
+            // tees (light/heavy)
+            ('├', 1, 1, 1, 0), ('┝', 1, 1, 2, 0), ('┞', 2, 1, 1, 0), ('┟', 1, 2, 1, 0),
+            ('┠', 2, 2, 1, 0), ('┡', 2, 1, 2, 0), ('┢', 1, 2, 2, 0), ('┣', 2, 2, 2, 0),
+            ('┤', 1, 1, 0, 1), ('┥', 1, 1, 0, 2), ('┦', 2, 1, 0, 1), ('┧', 1, 2, 0, 1),
+            ('┨', 2, 2, 0, 1), ('┩', 2, 1, 0, 2), ('┪', 1, 2, 0, 2), ('┫', 2, 2, 0, 2),
+            ('┬', 0, 1, 1, 1), ('┭', 0, 1, 1, 2), ('┮', 0, 1, 2, 1), ('┯', 0, 1, 2, 2),
+            ('┰', 0, 2, 1, 1), ('┱', 0, 2, 1, 2), ('┲', 0, 2, 2, 1), ('┳', 0, 2, 2, 2),
+            ('┴', 1, 0, 1, 1), ('┵', 1, 0, 1, 2), ('┶', 1, 0, 2, 1), ('┷', 1, 0, 2, 2),
+            ('┸', 2, 0, 1, 1), ('┹', 2, 0, 1, 2), ('┺', 2, 0, 2, 1), ('┻', 2, 0, 2, 2),
+            // crosses (light/heavy)
+            ('┼', 1, 1, 1, 1), ('┽', 1, 1, 1, 2), ('┾', 1, 1, 2, 1), ('┿', 1, 1, 2, 2),
+            ('╀', 2, 1, 1, 1), ('╁', 1, 2, 1, 1), ('╂', 2, 2, 1, 1), ('╃', 2, 1, 1, 2),
+            ('╄', 2, 1, 2, 1), ('╅', 1, 2, 1, 2), ('╆', 1, 2, 2, 1), ('╇', 2, 1, 2, 2),
+            ('╈', 1, 2, 2, 2), ('╉', 2, 2, 1, 2), ('╊', 2, 2, 2, 1), ('╋', 2, 2, 2, 2),
+            // double
+            ('═', 0, 0, 3, 3), ('║', 3, 3, 0, 0),
+            ('╔', 0, 3, 3, 0), ('╗', 0, 3, 0, 3), ('╚', 3, 0, 3, 0), ('╝', 3, 0, 0, 3),
+            ('╠', 3, 3, 3, 0), ('╣', 3, 3, 0, 3), ('╦', 0, 3, 3, 3), ('╩', 3, 0, 3, 3),
+            ('╬', 3, 3, 3, 3),
+            // double/light mixes
+            ('╒', 0, 1, 3, 0), ('╓', 0, 3, 1, 0), ('╕', 0, 1, 0, 3), ('╖', 0, 3, 0, 1),
+            ('╘', 1, 0, 3, 0), ('╙', 3, 0, 1, 0), ('╛', 1, 0, 0, 3), ('╜', 3, 0, 0, 1),
+            ('╞', 1, 1, 3, 0), ('╟', 3, 3, 1, 0), ('╡', 1, 1, 0, 3), ('╢', 3, 3, 0, 1),
+            ('╤', 0, 1, 3, 3), ('╥', 0, 3, 1, 1), ('╧', 1, 0, 3, 3), ('╨', 3, 0, 1, 1),
+            ('╪', 1, 1, 3, 3), ('╫', 3, 3, 1, 1),
         };
 
-        // ----- Box-drawing merging -----
-        // Every line char is a set of arms pointing N/S/E/W. When an element draws over
-        // existing line art, the arms are unioned and the union's junction char is emitted
-        // (e.g. '│' under '─' becomes '┼'). Junctions always use light-style glyphs.
+        private static readonly Dictionary<char, int> KeyByChar =
+            CharTable.ToDictionary(t => t.C, t => Key(t.N, t.S, t.E, t.W));
 
-        [Flags]
-        private enum Arms
+        private static readonly Dictionary<int, char> CharByKey =
+            CharTable.ToDictionary(t => Key(t.N, t.S, t.E, t.W), t => t.C);
+
+        private static int ArmsOf(char c) => KeyByChar.TryGetValue(c, out var k) ? k : 0;
+
+        /// <summary>Glyph for an arm key; combinations without an exact glyph (heavy
+        /// mixed with double) pick the nearest glyph with the same arms present,
+        /// preferring double then heavy — a full heavy×double crossing yields '╬'.</summary>
+        private static char CharFor(int key)
         {
-            None = 0,
-            N = 1,
-            S = 2,
-            E = 4,
-            W = 8,
-            All = N | S | E | W,
+            if (CharByKey.TryGetValue(key, out var exact))
+                return exact;
+            int n = key & 3, s = (key >> 2) & 3, e = (key >> 4) & 3, w = (key >> 6) & 3;
+            char best = '┼';
+            int bestScore = int.MaxValue, bestDoubles = -1, bestHeavies = -1;
+            foreach (var t in CharTable)
+            {
+                if ((t.N > 0) != (n > 0) || (t.S > 0) != (s > 0) ||
+                    (t.E > 0) != (e > 0) || (t.W > 0) != (w > 0))
+                    continue;
+                int score = Math.Abs(t.N - n) + Math.Abs(t.S - s) + Math.Abs(t.E - e) + Math.Abs(t.W - w);
+                int doubles = (t.N == 3 ? 1 : 0) + (t.S == 3 ? 1 : 0) + (t.E == 3 ? 1 : 0) + (t.W == 3 ? 1 : 0);
+                int heavies = (t.N == 2 ? 1 : 0) + (t.S == 2 ? 1 : 0) + (t.E == 2 ? 1 : 0) + (t.W == 2 ? 1 : 0);
+                bool better = score < bestScore ||
+                    (score == bestScore && (doubles > bestDoubles ||
+                        (doubles == bestDoubles && heavies > bestHeavies)));
+                if (better)
+                {
+                    best = t.C;
+                    bestScore = score;
+                    bestDoubles = doubles;
+                    bestHeavies = heavies;
+                }
+            }
+            return best;
         }
 
-        private static Arms CharArms(char c) => c switch
+        private static int MergeKeys(int a, int b)
         {
-            '─' or '╌' or '┈' => Arms.E | Arms.W,
-            '│' or '╎' or '┊' => Arms.N | Arms.S,
-            '┌' => Arms.E | Arms.S,
-            '┐' => Arms.W | Arms.S,
-            '└' => Arms.N | Arms.E,
-            '┘' => Arms.N | Arms.W,
-            '├' => Arms.N | Arms.S | Arms.E,
-            '┤' => Arms.N | Arms.S | Arms.W,
-            '┬' => Arms.E | Arms.W | Arms.S,
-            '┴' => Arms.E | Arms.W | Arms.N,
-            '┼' => Arms.All,
-            _ => Arms.None,
-        };
+            int r = 0;
+            for (int shift = 0; shift < 8; shift += 2)
+                r |= Math.Max((a >> shift) & 3, (b >> shift) & 3) << shift;
+            return r;
+        }
 
-        private static char ArmsChar(Arms a) => a switch
-        {
-            Arms.N or Arms.S or (Arms.N | Arms.S) => '│',
-            Arms.E or Arms.W or (Arms.E | Arms.W) => '─',
-            Arms.E | Arms.S => '┌',
-            Arms.W | Arms.S => '┐',
-            Arms.N | Arms.E => '└',
-            Arms.N | Arms.W => '┘',
-            Arms.N | Arms.S | Arms.E => '├',
-            Arms.N | Arms.S | Arms.W => '┤',
-            Arms.E | Arms.W | Arms.S => '┬',
-            Arms.E | Arms.W | Arms.N => '┴',
-            _ => '┼',
-        };
-
-        /// <summary>Draws a line char, merging with line art already in the cell.
+        /// <summary>Draws line arms into a cell, merging with arms already present.
         /// <paramref name="keep"/> restricts which existing arms survive — a solid
         /// rectangle keeps only arms pointing away from its interior.</summary>
-        private void MergeSet(int x, int y, char c, Arms keep = Arms.All)
+        private void MergeSet(int x, int y, int ownKey, int keep = KeepAll)
         {
-            var arms = CharArms(c);
-            if (arms == Arms.None)
-            {
-                Set(x, y, c);
+            if (ownKey == 0)
                 return;
-            }
-            var existing = CharArms(Get(x, y)) & keep;
-            if (existing == Arms.None || (existing | arms) == arms)
-                Set(x, y, c);
-            else
-                Set(x, y, ArmsChar(existing | arms));
+            int existing = ArmsOf(Get(x, y)) & keep;
+            Set(x, y, CharFor(MergeKeys(existing, ownKey)));
         }
+
+        private static int Weight(LineStyle s) => s switch
+        {
+            LineStyle.Bold => 2,
+            LineStyle.Double => 3,
+            _ => 1,
+        };
 
         private void DrawRect(RectElement r)
         {
@@ -144,39 +194,37 @@ namespace AsciiDraw.Models
 
             if (r.LineStyle != LineStyle.None)
             {
-                var (hc, vc) = StyleChars(r.LineStyle);
+                int wt = Weight(r.LineStyle);
+                int hKey = Key(0, 0, wt, wt);
+                int vKey = Key(wt, wt, 0, 0);
                 if (r.Width == 1 && r.Height == 1)
                 {
-                    MergeSet(x1, y1, hc);
+                    MergeSet(x1, y1, hKey);
                 }
                 else if (r.Height == 1)
                 {
-                    for (int x = x1; x <= x2; x++) MergeSet(x, y1, hc);
+                    for (int x = x1; x <= x2; x++) MergeSet(x, y1, hKey);
                 }
                 else if (r.Width == 1)
                 {
-                    for (int y = y1; y <= y2; y++) MergeSet(x1, y, vc);
+                    for (int y = y1; y <= y2; y++) MergeSet(x1, y, vKey);
                 }
                 else
                 {
-                    Arms top = solid ? Arms.N : Arms.All;
-                    Arms bottom = solid ? Arms.S : Arms.All;
-                    Arms left = solid ? Arms.W : Arms.All;
-                    Arms right = solid ? Arms.E : Arms.All;
                     for (int x = x1 + 1; x < x2; x++)
                     {
-                        MergeSet(x, y1, hc, top);
-                        MergeSet(x, y2, hc, bottom);
+                        MergeSet(x, y1, hKey, solid ? KeepN : KeepAll);
+                        MergeSet(x, y2, hKey, solid ? KeepS : KeepAll);
                     }
                     for (int y = y1 + 1; y < y2; y++)
                     {
-                        MergeSet(x1, y, vc, left);
-                        MergeSet(x2, y, vc, right);
+                        MergeSet(x1, y, vKey, solid ? KeepW : KeepAll);
+                        MergeSet(x2, y, vKey, solid ? KeepE : KeepAll);
                     }
-                    MergeSet(x1, y1, '┌', solid ? Arms.N | Arms.W : Arms.All);
-                    MergeSet(x2, y1, '┐', solid ? Arms.N | Arms.E : Arms.All);
-                    MergeSet(x1, y2, '└', solid ? Arms.S | Arms.W : Arms.All);
-                    MergeSet(x2, y2, '┘', solid ? Arms.S | Arms.E : Arms.All);
+                    MergeSet(x1, y1, Key(0, wt, wt, 0), solid ? KeepN | KeepW : KeepAll);
+                    MergeSet(x2, y1, Key(0, wt, 0, wt), solid ? KeepN | KeepE : KeepAll);
+                    MergeSet(x1, y2, Key(wt, 0, wt, 0), solid ? KeepS | KeepW : KeepAll);
+                    MergeSet(x2, y2, Key(wt, 0, 0, wt), solid ? KeepS | KeepE : KeepAll);
                 }
             }
 
@@ -258,62 +306,52 @@ namespace AsciiDraw.Models
         private void DrawLine(LineElement l)
         {
             var cells = l.RouteCells();
-            var (hc, vc) = StyleChars(l.LineStyle);
-            int n = cells.Count;
+            int wt = Weight(l.LineStyle);
+            int count = cells.Count;
 
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < count; i++)
             {
                 var cur = cells[i];
-                char c;
-                if (n == 1)
+                int n = 0, s = 0, e = 0, w = 0;
+
+                void ArmToward((int X, int Y) other)
                 {
-                    c = hc;
+                    if (other.Y < cur.Y) n = wt;
+                    else if (other.Y > cur.Y) s = wt;
+                    else if (other.X > cur.X) e = wt;
+                    else if (other.X < cur.X) w = wt;
+                }
+
+                if (count == 1)
+                {
+                    e = w = wt;
                 }
                 else if (i == 0)
                 {
-                    var next = cells[1];
-                    c = next.Y == cur.Y ? hc : vc;
+                    // End cells render as full straights along their segment axis.
+                    if (cells[1].Y == cur.Y) e = w = wt;
+                    else n = s = wt;
                 }
-                else if (i == n - 1)
+                else if (i == count - 1)
                 {
-                    var prev = cells[i - 1];
-                    c = prev.Y == cur.Y ? hc : vc;
+                    if (cells[i - 1].Y == cur.Y) e = w = wt;
+                    else n = s = wt;
                 }
                 else
                 {
-                    var prev = cells[i - 1];
-                    var next = cells[i + 1];
-                    if (prev.X == next.X)
-                        c = vc;
-                    else if (prev.Y == next.Y)
-                        c = hc;
-                    else
-                        c = Corner(prev, cur, next);
+                    ArmToward(cells[i - 1]);
+                    ArmToward(cells[i + 1]);
                 }
-                MergeSet(cur.X, cur.Y, c);
+                MergeSet(cur.X, cur.Y, Key(n, s, e, w));
             }
 
-            if (n > 1)
+            if (count > 1)
             {
                 if (l.StartArrow == ArrowStyle.Triangle)
                     Set(cells[0].X, cells[0].Y, Arrow(cells[1], cells[0]));
                 if (l.EndArrow == ArrowStyle.Triangle)
-                    Set(cells[n - 1].X, cells[n - 1].Y, Arrow(cells[n - 2], cells[n - 1]));
+                    Set(cells[count - 1].X, cells[count - 1].Y, Arrow(cells[count - 2], cells[count - 1]));
             }
-        }
-
-        // Corner glyph at `cur` joining the neighbor cells `prev` and `next`.
-        private static char Corner((int X, int Y) prev, (int X, int Y) cur, (int X, int Y) next)
-        {
-            bool east = prev.X > cur.X || next.X > cur.X;
-            bool west = prev.X < cur.X || next.X < cur.X;
-            bool north = prev.Y < cur.Y || next.Y < cur.Y;
-            bool south = prev.Y > cur.Y || next.Y > cur.Y;
-            if (east && south) return '┌';
-            if (west && south) return '┐';
-            if (east && north) return '└';
-            if (west && north) return '┘';
-            return '─';
         }
 
         // Arrow glyph pointing from `from` toward `tip`.

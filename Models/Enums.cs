@@ -3,8 +3,8 @@ namespace AsciiDraw.Models
     public enum LineStyle
     {
         Normal,
-        Dashed,
-        Dotted,
+        Bold,
+        Double,
         None,
     }
 
