@@ -1,20 +1,164 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AsciiDraw.ViewModels"
+        xmlns:views="using:AsciiDraw.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="AsciiDraw.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="AsciiDraw">
+        Width="1240" Height="840"
+        Title="{Binding WindowTitle}">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewFileCommand}"/>
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenCommand}"/>
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand}"/>
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}"/>
+        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}"/>
+        <KeyBinding Gesture="Ctrl+G" Command="{Binding GroupSelectedCommand}"/>
+        <KeyBinding Gesture="Ctrl+Shift+G" Command="{Binding UngroupSelectedCommand}"/>
+    </Window.KeyBindings>
 
+    <Window.Styles>
+        <Style Selector="Button.tb, ToggleButton.tb">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Background="#F3F3F3" BorderBrush="#D0D0D0" BorderThickness="0,0,0,1">
+            <DockPanel Margin="8,6">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox ItemsSource="{Binding ZoomItems}" SelectedItem="{Binding ZoomText}"
+                              FontSize="12" MinWidth="80"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button Classes="tb" Content="New" Command="{Binding NewFileCommand}" ToolTip.Tip="New (Ctrl+N)"/>
+                    <Button Classes="tb" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open (Ctrl+O)"/>
+                    <Button Classes="tb" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)"/>
+                    <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
+                    <Button Classes="tb" Content="TXT" Command="{Binding ExportTxtCommand}" ToolTip.Tip="Export as plain text"/>
+                    <Button Classes="tb" Content="SVG" Command="{Binding ExportSvgCommand}" ToolTip.Tip="Export as SVG"/>
+                    <Button Classes="tb" Content="PNG" Command="{Binding ExportPngCommand}" ToolTip.Tip="Export as PNG"/>
+                    <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
+                    <Button Classes="tb" Content="↶ Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)"/>
+                    <Button Classes="tb" Content="↷ Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)"/>
+                    <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
+                    <ToggleButton Classes="tb" Content="⬚ Select" IsChecked="{Binding IsSelectTool}" ToolTip.Tip="Select / move / resize"/>
+                    <ToggleButton Classes="tb" Content="▭ Rect" IsChecked="{Binding IsRectTool}" ToolTip.Tip="Draw rectangle"/>
+                    <ToggleButton Classes="tb" Content="T Text" IsChecked="{Binding IsTextTool}" ToolTip.Tip="Draw text box"/>
+                    <ToggleButton Classes="tb" Content="╱ Line" IsChecked="{Binding IsLineTool}" ToolTip.Tip="Draw line"/>
+                    <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
+                    <Button Classes="tb" Content="Group" Command="{Binding GroupSelectedCommand}" ToolTip.Tip="Group (Ctrl+G)"/>
+                    <Button Classes="tb" Content="Ungroup" Command="{Binding UngroupSelectedCommand}" ToolTip.Tip="Ungroup (Ctrl+Shift+G)"/>
+                    <Button Classes="tb" Content="Delete" Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete (Del)"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="#F3F3F3" BorderBrush="#D0D0D0" BorderThickness="0,1,0,0">
+            <DockPanel Margin="10,4">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding CursorStatus}" Foreground="#888" FontSize="12"/>
+                <TextBlock Text="{Binding SelectionStatus}" FontSize="12"/>
+            </DockPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="210,1,*,1,260">
+
+            <!-- Layers panel -->
+            <DockPanel Grid.Column="0" Background="#F8F8F8">
+                <TextBlock DockPanel.Dock="Top" Text="Layers" FontWeight="SemiBold" FontSize="12"
+                           Margin="12,10,12,6" Foreground="#444"/>
+                <ListBox x:Name="LayerList" ItemsSource="{Binding Layers}" SelectionMode="Multiple"
+                         Background="Transparent" Padding="4,0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LayerItem">
+                            <StackPanel Orientation="Horizontal" Margin="{Binding Margin}" Spacing="7">
+                                <TextBlock Text="{Binding Icon}" Foreground="#999" FontSize="12"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="8,4"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                        </Style>
+                    </ListBox.Styles>
+                </ListBox>
+            </DockPanel>
+
+            <Border Grid.Column="1" Background="#D0D0D0"/>
+
+            <!-- Edit area: rulers + scrollable canvas -->
+            <Grid Grid.Column="2" RowDefinitions="22,*" ColumnDefinitions="30,*" Background="White">
+                <Border Grid.Row="0" Grid.Column="0" Background="#F3F3F3"
+                        BorderBrush="#D0D0D0" BorderThickness="0,0,1,1"/>
+                <views:ColumnRuler x:Name="TopRuler" Grid.Row="0" Grid.Column="1"/>
+                <views:RowRuler x:Name="LeftRuler" Grid.Row="1" Grid.Column="0"/>
+                <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.Column="1"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <views:AsciiCanvas x:Name="EditCanvas"/>
+                </ScrollViewer>
+            </Grid>
+
+            <Border Grid.Column="3" Background="#D0D0D0"/>
+
+            <!-- Properties panel -->
+            <ScrollViewer Grid.Column="4" Background="#F8F8F8">
+                <StackPanel Margin="12,10" Spacing="2">
+                    <TextBlock Text="Properties" FontWeight="SemiBold" FontSize="12" Foreground="#444"/>
+
+                    <TextBlock Text="{Binding SelectionHeader}" IsVisible="{Binding ShowPlaceholder}"
+                               Foreground="#999" FontSize="13" HorizontalAlignment="Center" Margin="0,50,0,0"/>
+
+                    <!-- Rectangle / text box properties -->
+                    <StackPanel IsVisible="{Binding IsRectSelected}" Spacing="2">
+                        <TextBlock Classes="label" Text="Name"/>
+                        <TextBox Text="{Binding SelName}" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Border"/>
+                        <ComboBox ItemsSource="{Binding BorderStyles}" SelectedItem="{Binding SelBorderStyle}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Fill"/>
+                        <ComboBox ItemsSource="{Binding FillStyles}" SelectedItem="{Binding SelFill}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Text"/>
+                        <TextBox Text="{Binding SelText}" AcceptsReturn="True" TextWrapping="Wrap"
+                                 Height="110" FontSize="12" FontFamily="Cascadia Mono,Consolas,Courier New"/>
+                    </StackPanel>
+
+                    <!-- Line properties -->
+                    <StackPanel IsVisible="{Binding IsLineSelected}" Spacing="2">
+                        <TextBlock Classes="label" Text="Name"/>
+                        <TextBox Text="{Binding SelName}" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Style"/>
+                        <ComboBox ItemsSource="{Binding LineStyles}" SelectedItem="{Binding SelLineStyle}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="Start Arrow"/>
+                        <ComboBox ItemsSource="{Binding ArrowStyles}" SelectedItem="{Binding SelStartArrow}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                        <TextBlock Classes="label" Text="End Arrow"/>
+                        <ComboBox ItemsSource="{Binding ArrowStyles}" SelectedItem="{Binding SelEndArrow}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
 </Window>
