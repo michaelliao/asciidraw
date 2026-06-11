@@ -1,0 +1,21 @@
+site_name: AsciiDraw
+theme:
+  name: material
+  logo: assets/images/logo.png
+  favicon: assets/images/favicon.ico
+  palette:
+    primary: indigo
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - toc.follow
+    - toc.integrate
+    - navigation.top
+  hide:
+    - navigation
+
+nav:
+  - Home: index.md
+
+copyright: |
+  <p>AsciiDraw copyright &copy; 2026. <a href="https://github.com/michaelliao/asciidraw/releases/latest">Download</a> | <a href="https://github.com/michaelliao/asciidraw">GitHub</a></p>
