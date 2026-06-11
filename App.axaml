@@ -4,10 +4,6 @@
              xmlns:local="using:AsciiDraw"
              RequestedThemeVariant="Light">
 
-    <Application.DataTemplates>
-        <local:ViewLocator/>
-    </Application.DataTemplates>
-  
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>

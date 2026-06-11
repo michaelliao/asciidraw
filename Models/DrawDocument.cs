@@ -11,15 +11,20 @@ namespace AsciiDraw.Models
         public List<DrawElement> Elements { get; set; } = new();
         public List<GroupInfo> Groups { get; set; } = new();
 
-        public static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            WriteIndented = true,
-            Converters = { new JsonStringEnumConverter() },
-        };
-
-        public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+        public string ToJson() =>
+            JsonSerializer.Serialize(this, DrawDocumentJsonContext.Default.DrawDocument);
 
         public static DrawDocument FromJson(string json) =>
-            JsonSerializer.Deserialize<DrawDocument>(json, JsonOptions) ?? new DrawDocument();
+            JsonSerializer.Deserialize(json, DrawDocumentJsonContext.Default.DrawDocument)
+                ?? new DrawDocument();
+    }
+
+    // Source-generated serializer: required for NativeAOT (no reflection), and
+    // faster at runtime. Polymorphic Elements work via the [JsonDerivedType]
+    // attributes on DrawElement; enums serialize as strings.
+    [JsonSourceGenerationOptions(WriteIndented = true, UseStringEnumConverter = true)]
+    [JsonSerializable(typeof(DrawDocument))]
+    internal partial class DrawDocumentJsonContext : JsonSerializerContext
+    {
     }
 }
