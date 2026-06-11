@@ -62,7 +62,7 @@
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>
-                    <Button Classes="tb" Content="Copy" Command="{Binding CopyTextCommand}" ToolTip.Tip="Copy text to clipboard"/>
+                    <Button Classes="tb" Content="Export" Command="{Binding CopyTextCommand}" ToolTip.Tip="Copy text to clipboard"/>
                     <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
                     <Button Classes="tb" Content="↶ Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)"/>
                     <Button Classes="tb" Content="↷ Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)"/>
