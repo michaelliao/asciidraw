@@ -330,7 +330,7 @@ namespace AsciiDraw.Views
                 case Tool.Text:
                 {
                     vm.PushUndo();
-                    var r = new RectElement { X = cell.X, Y = cell.Y, Width = 1, Height = 1 };
+                    var r = new RectElement { X = cell.X, Y = cell.Y, Width = 2, Height = 2 };
                     if (vm.CurrentTool == Tool.Text)
                         r.LineStyle = LineStyle.None;
                     vm.AddElement(r, isTextBox: vm.CurrentTool == Tool.Text);
@@ -420,8 +420,8 @@ namespace AsciiDraw.Views
                     {
                         r.X = Math.Min(_pressCell.X, cell.X);
                         r.Y = Math.Min(_pressCell.Y, cell.Y);
-                        r.Width = Math.Abs(cell.X - _pressCell.X) + 1;
-                        r.Height = Math.Abs(cell.Y - _pressCell.Y) + 1;
+                        r.Width = Math.Max(Math.Abs(cell.X - _pressCell.X) + 1, 2);
+                        r.Height = Math.Max(Math.Abs(cell.Y - _pressCell.Y) + 1, 2);
                         vm.NotifyDocumentChanged();
                     }
                     else if (_createElement is LineElement l)
@@ -486,8 +486,8 @@ namespace AsciiDraw.Views
             if (top) { ny = oy + dy; nh = oh - dy; }
             if (bottom) { nh = oh + dy; }
 
-            if (nw < 1) { nw = 1; if (left) nx = ox + ow - 1; }
-            if (nh < 1) { nh = 1; if (top) ny = oy + oh - 1; }
+            if (nw < 2) { nw = 2; if (left) nx = ox + ow - 2; }
+            if (nh < 2) { nh = 2; if (top) ny = oy + oh - 2; }
 
             _resizeRect.X = nx;
             _resizeRect.Y = ny;
