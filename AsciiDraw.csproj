@@ -6,9 +6,7 @@
     <Version>0.0.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <IsAotCompatible>true</IsAotCompatible>
     <PublishAot>true</PublishAot>
-    <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>

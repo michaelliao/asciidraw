@@ -2,7 +2,7 @@ name: Release AsciiDraw
 
 on:
   push:
-    tags: ["*"]
+    tags: ["v*"]
 
 jobs:
   build:
@@ -41,7 +41,10 @@ jobs:
         run: dotnet publish AsciiDraw.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o ${{ env.PUBLISH_DIR }}
       - name: Strip debug symbols
         shell: pwsh
-        run: Get-ChildItem ${{ env.PUBLISH_DIR }} -Recurse -Filter *.pdb | Remove-Item -Force
+        run: |
+          # NativeAOT symbol files: *.pdb (Windows), *.dbg (Linux), *.dSYM dirs (macOS)
+          Get-ChildItem ${{ env.PUBLISH_DIR }} -Recurse -Include *.pdb, *.dbg -File | Remove-Item -Force
+          Get-ChildItem ${{ env.PUBLISH_DIR }} -Recurse -Filter *.dSYM -Directory | Remove-Item -Recurse -Force
       - name: Zip publish
         shell: pwsh
         run: Compress-Archive -Path ${{ env.PUBLISH_DIR }} -DestinationPath ${{ matrix.artifact }}.zip
