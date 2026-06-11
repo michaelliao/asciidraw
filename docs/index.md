@@ -7,7 +7,7 @@ documentation, commit messages, or anywhere else a monospace font lives.
 
 ![AsciiDraw](assets/images/screenshot.png)
 
-<pre><code>
+```
 ┌────────────┐
 │   Hello    │──────┐
 └────────────┘      │
@@ -15,7 +15,7 @@ documentation, commit messages, or anywhere else a monospace font lives.
              ┌────────────┐
              │   World    │
              └────────────┘
-</code></pre>
+```
 
 AsciiDraw runs on Windows, macOS, and Linux (built with
 [Avalonia](https://avaloniaui.net/), compiled to native code).

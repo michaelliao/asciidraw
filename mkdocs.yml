@@ -14,6 +14,9 @@ theme:
   hide:
     - navigation
 
+extra_css:
+  - extra.css
+
 nav:
   - Home: index.md
 
