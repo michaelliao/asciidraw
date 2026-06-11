@@ -27,8 +27,20 @@
 
     <Window.Styles>
         <Style Selector="Button.tb, ToggleButton.tb, SplitButton.tb">
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="9,4"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style Selector="StackPanel.tbi">
+            <Setter Property="Spacing" Value="3"/>
+        </Style>
+        <Style Selector="StackPanel.tbi > views|SvgIcon">
+            <Setter Property="Width" Value="17"/>
+            <Setter Property="Height" Value="17"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="StackPanel.tbi > TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11"/>
@@ -47,10 +59,24 @@
                               FontSize="12" MinWidth="80"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Classes="tb" Content="New" Command="{Binding NewFileCommand}" ToolTip.Tip="New (Ctrl+N)"/>
-                    <Button Classes="tb" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open (Ctrl+O)"/>
-                    <SplitButton Classes="tb" Content="Save" Command="{Binding SaveCommand}"
+                    <Button Classes="tb" Command="{Binding NewFileCommand}" ToolTip.Tip="New (Ctrl+N)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="new"/>
+                            <TextBlock Text="New"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tb" Command="{Binding OpenCommand}" ToolTip.Tip="Open (Ctrl+O)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="open"/>
+                            <TextBlock Text="Open"/>
+                        </StackPanel>
+                    </Button>
+                    <SplitButton Classes="tb" Command="{Binding SaveCommand}"
                                  ToolTip.Tip="Save as .asciidraw (Ctrl+S)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="save"/>
+                            <TextBlock Text="Save"/>
+                        </StackPanel>
                         <SplitButton.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedLeft">
                                 <MenuItem Header="Text" Command="{Binding ExportTxtCommand}"
@@ -62,19 +88,69 @@
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>
-                    <Button Classes="tb" Content="Export" Command="{Binding CopyTextCommand}" ToolTip.Tip="Copy text to clipboard"/>
+                    <Button Classes="tb" Command="{Binding CopyTextCommand}" ToolTip.Tip="Copy text to clipboard">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="export"/>
+                            <TextBlock Text="Export"/>
+                        </StackPanel>
+                    </Button>
                     <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
-                    <Button Classes="tb" Content="↶ Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)"/>
-                    <Button Classes="tb" Content="↷ Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)"/>
+                    <Button Classes="tb" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="undo"/>
+                            <TextBlock Text="Undo"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tb" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="redo"/>
+                            <TextBlock Text="Redo"/>
+                        </StackPanel>
+                    </Button>
                     <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
-                    <ToggleButton Classes="tb" Content="⬚ Select" IsChecked="{Binding IsSelectTool}" ToolTip.Tip="Select / move / resize"/>
-                    <ToggleButton Classes="tb" Content="▭ Rect" IsChecked="{Binding IsRectTool}" ToolTip.Tip="Draw rectangle"/>
-                    <ToggleButton Classes="tb" Content="T Text" IsChecked="{Binding IsTextTool}" ToolTip.Tip="Draw text box"/>
-                    <ToggleButton Classes="tb" Content="╱ Line" IsChecked="{Binding IsLineTool}" ToolTip.Tip="Draw line"/>
+                    <ToggleButton Classes="tb" IsChecked="{Binding IsSelectTool}" ToolTip.Tip="Select / move / resize">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="select"/>
+                            <TextBlock Text="Select"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="tb" IsChecked="{Binding IsRectTool}" ToolTip.Tip="Draw rectangle">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="rect"/>
+                            <TextBlock Text="Rect"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="tb" IsChecked="{Binding IsTextTool}" ToolTip.Tip="Draw text box">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="text"/>
+                            <TextBlock Text="Text"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="tb" IsChecked="{Binding IsLineTool}" ToolTip.Tip="Draw line">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="line"/>
+                            <TextBlock Text="Line"/>
+                        </StackPanel>
+                    </ToggleButton>
                     <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
-                    <Button Classes="tb" Content="Group" Command="{Binding GroupSelectedCommand}" ToolTip.Tip="Group (Ctrl+G)"/>
-                    <Button Classes="tb" Content="Ungroup" Command="{Binding UngroupSelectedCommand}" ToolTip.Tip="Ungroup (Ctrl+Shift+G)"/>
-                    <Button Classes="tb" Content="Delete" Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete (Del)"/>
+                    <Button Classes="tb" Command="{Binding GroupSelectedCommand}" ToolTip.Tip="Group (Ctrl+G)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="group"/>
+                            <TextBlock Text="Group"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tb" Command="{Binding UngroupSelectedCommand}" ToolTip.Tip="Ungroup (Ctrl+Shift+G)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="ungroup"/>
+                            <TextBlock Text="Ungroup"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tb" Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete (Del)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="delete"/>
+                            <TextBlock Text="Delete"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>
