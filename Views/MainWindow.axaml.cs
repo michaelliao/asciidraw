@@ -12,6 +12,7 @@ namespace AsciiDraw.Views
     {
         private MainWindowViewModel? _vm;
         private bool _syncingLayers;
+        private bool _allowClose;
         private LayerItem? _dragLayerItem;
         private Point _layerPressPoint;
         private bool _layerDragActive;
@@ -39,6 +40,22 @@ namespace AsciiDraw.Views
             LayerList.AddHandler(PointerMovedEvent, OnLayerPointerMoved, RoutingStrategies.Tunnel);
             LayerList.AddHandler(PointerReleasedEvent, OnLayerPointerReleased, RoutingStrategies.Tunnel);
             Opened += (_, _) => EditCanvas.Focus();
+        }
+
+        protected override void OnClosing(WindowClosingEventArgs e)
+        {
+            base.OnClosing(e);
+            if (_allowClose || _vm is not { IsDirty: true })
+                return;
+            e.Cancel = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                if (await _vm.ConfirmLoseChangesAsync())
+                {
+                    _allowClose = true;
+                    Close();
+                }
+            });
         }
 
         protected override void OnDataContextChanged(EventArgs e)

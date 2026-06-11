@@ -253,9 +253,23 @@ namespace AsciiDraw.ViewModels
             _redoStack.Clear();
         }
 
+        private bool _isDirty;
+        public bool IsDirty
+        {
+            get => _isDirty;
+            private set
+            {
+                if (_isDirty == value)
+                    return;
+                _isDirty = value;
+                UpdateTitle();
+            }
+        }
+
         public void NotifyDocumentChanged()
         {
             UpdateSelectionStatus();
+            IsDirty = true;
             DocumentChanged?.Invoke();
         }
 
@@ -746,23 +760,52 @@ namespace AsciiDraw.ViewModels
         private static readonly FilePickerFileType AsciiDrawFileType =
             new("AsciiDraw drawing") { Patterns = new[] { "*.asciidraw" } };
 
-        [RelayCommand]
-        private void NewFile()
+        private static Avalonia.Controls.Window? MainWindow =>
+            (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+
+        private string CurrentFileName =>
+            _filePath != null ? Path.GetFileName(_filePath) : "unnamed.asciidraw";
+
+        /// <summary>When the document has unsaved changes, asks the user to save them.
+        /// Returns true when it is safe to discard the current document.</summary>
+        public async Task<bool> ConfirmLoseChangesAsync()
         {
+            if (!IsDirty)
+                return true;
+            var owner = MainWindow;
+            if (owner == null)
+                return true;
+            var choice = await Views.ConfirmSaveDialog.ShowAsync(owner, CurrentFileName);
+            return choice switch
+            {
+                Views.SaveChoice.Save => await SaveCoreAsync(),
+                Views.SaveChoice.DontSave => true,
+                _ => false,
+            };
+        }
+
+        [RelayCommand]
+        private async Task NewFile()
+        {
+            if (!await ConfirmLoseChangesAsync())
+                return;
             Document = new DrawDocument();
             _undoStack.Clear();
             _redoStack.Clear();
             _lastUndoTag = null;
             _filePath = null;
             Selection.Clear();
-            UpdateTitle();
             NotifySelectionChanged();
             NotifyStructureChanged();
+            IsDirty = false;
+            UpdateTitle();
         }
 
         [RelayCommand]
         private async Task Open()
         {
+            if (!await ConfirmLoseChangesAsync())
+                return;
             var storage = Storage;
             if (storage == null)
                 return;
@@ -783,9 +826,10 @@ namespace AsciiDraw.ViewModels
                 _redoStack.Clear();
                 _lastUndoTag = null;
                 Selection.Clear();
-                UpdateTitle();
                 NotifySelectionChanged();
                 NotifyStructureChanged();
+                IsDirty = false;
+                UpdateTitle();
             }
             catch (Exception ex) when (ex is IOException or JsonException)
             {
@@ -796,20 +840,26 @@ namespace AsciiDraw.ViewModels
         [RelayCommand]
         private async Task Save()
         {
-            if (_filePath == null)
-            {
-                await SaveAs();
-                return;
-            }
-            await File.WriteAllTextAsync(_filePath, Document.ToJson());
-            SelectionStatus = $"Saved {Path.GetFileName(_filePath)}";
+            await SaveCoreAsync();
         }
 
-        private async Task SaveAs()
+        /// <summary>Saves the document, prompting for a path when there is none.
+        /// Returns false when the user cancelled the file picker.</summary>
+        private async Task<bool> SaveCoreAsync()
+        {
+            if (_filePath == null)
+                return await SaveAsCoreAsync();
+            await File.WriteAllTextAsync(_filePath, Document.ToJson());
+            IsDirty = false;
+            SelectionStatus = $"Saved {Path.GetFileName(_filePath)}";
+            return true;
+        }
+
+        private async Task<bool> SaveAsCoreAsync()
         {
             var storage = Storage;
             if (storage == null)
-                return;
+                return false;
             var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "Save Drawing",
@@ -818,15 +868,17 @@ namespace AsciiDraw.ViewModels
                 FileTypeChoices = new[] { AsciiDrawFileType },
             });
             if (file == null)
-                return;
+                return false;
             await using (var stream = await file.OpenWriteAsync())
             await using (var writer = new StreamWriter(stream))
             {
                 await writer.WriteAsync(Document.ToJson());
             }
             _filePath = file.TryGetLocalPath();
+            IsDirty = false;
             UpdateTitle();
             SelectionStatus = $"Saved {file.Name}";
+            return true;
         }
 
         [RelayCommand]
@@ -895,8 +947,7 @@ namespace AsciiDraw.ViewModels
 
         private void UpdateTitle()
         {
-            var name = _filePath != null ? Path.GetFileName(_filePath) : "unnamed.asciidraw";
-            WindowTitle = $"{name} - AsciiDraw";
+            WindowTitle = $"{CurrentFileName}{(IsDirty ? "*" : "")} - AsciiDraw";
         }
     }
 }
