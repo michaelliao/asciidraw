@@ -4,7 +4,7 @@ theme:
   logo: assets/images/logo.png
   favicon: assets/images/favicon.ico
   palette:
-    primary: amber
+    primary: orange
   features:
     - navigation.tabs
     - navigation.tabs.sticky
