@@ -44,11 +44,12 @@ namespace AsciiDraw.Models
 
         public bool Contains(int cx, int cy) => cx >= X && cx < X + Width && cy >= Y && cy < Y + Height;
 
-        /// <summary>Cell position of one of the eight connection points.</summary>
+        /// <summary>Cell position of one of the eight connection points.
+        /// For even widths/heights the edge midpoints round toward the left/top.</summary>
         public (int X, int Y) AnchorCell(Anchor a)
         {
             int xr = X + Width - 1, yb = Y + Height - 1;
-            int xm = X + Width / 2, ym = Y + Height / 2;
+            int xm = X + (Width - 1) / 2, ym = Y + (Height - 1) / 2;
             return a switch
             {
                 Anchor.TopLeft => (X, Y),
