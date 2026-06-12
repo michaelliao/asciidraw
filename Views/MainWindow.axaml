@@ -23,6 +23,8 @@
         <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}"/>
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GroupSelectedCommand}"/>
         <KeyBinding Gesture="Ctrl+Shift+G" Command="{Binding UngroupSelectedCommand}"/>
+        <!-- Ctrl+C / Ctrl+V are handled by AsciiCanvas.OnKeyDown so they never
+             hijack copy/paste inside the property text boxes. -->
     </Window.KeyBindings>
 
     <Window.Styles>
@@ -143,6 +145,19 @@
                         <StackPanel Classes="tbi">
                             <views:SvgIcon Source="ungroup"/>
                             <TextBlock Text="Ungroup"/>
+                        </StackPanel>
+                    </Button>
+                    <Border Width="1" Background="#D0D0D0" Margin="6,2"/>
+                    <Button Classes="tb" Command="{Binding CopySelectionCommand}" ToolTip.Tip="Copy selection to clipboard (Ctrl+C)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="copy"/>
+                            <TextBlock Text="Copy"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tb" Command="{Binding PasteCommand}" ToolTip.Tip="Paste from clipboard (Ctrl+V)">
+                        <StackPanel Classes="tbi">
+                            <views:SvgIcon Source="paste"/>
+                            <TextBlock Text="Paste"/>
                         </StackPanel>
                     </Button>
                     <Button Classes="tb" Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete (Del)">

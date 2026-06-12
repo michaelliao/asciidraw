@@ -581,6 +581,14 @@ namespace AsciiDraw.Views
 
             switch (e.Key)
             {
+                case Key.C when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    vm.CopySelectionCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+                case Key.V when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    vm.PasteCommand.Execute(null);
+                    e.Handled = true;
+                    break;
                 case Key.Delete:
                 case Key.Back:
                     vm.DeleteSelectedCommand.Execute(null);

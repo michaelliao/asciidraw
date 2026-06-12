@@ -1033,17 +1033,137 @@ namespace AsciiDraw.ViewModels
             return true;
         }
 
-        [RelayCommand]
-        private async Task CopyText()
-        {
-            var clipboard = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
+        private static Avalonia.Input.Platform.IClipboard? Clipboard =>
+            (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
                 .MainWindow?.Clipboard;
+
+        private static async Task SetClipboardTextAsync(string text)
+        {
+            var clipboard = Clipboard;
             if (clipboard == null)
                 return;
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(DataFormat.Text, Exporter.ToText(Document)));
+            transfer.Add(DataTransferItem.Create(DataFormat.Text, text));
             await clipboard.SetDataAsync(transfer);
+        }
+
+        [RelayCommand]
+        private async Task CopyText()
+        {
+            await SetClipboardTextAsync(Exporter.ToText(Document));
             SelectionStatus = "Copied to clipboard";
+        }
+
+        // ----- Copy / paste elements -----
+
+        [RelayCommand]
+        private async Task CopySelection()
+        {
+            if (Selection.Count == 0)
+                return;
+            // Clipboard payload is a DrawDocument holding the selected elements plus
+            // the fully selected groups (the JSON round-trip also deep-clones, so the
+            // sanitizing below never touches live objects).
+            var includedGroups = Document.Groups
+                .Where(g => IsGroupFullySelected(g.Id))
+                .Select(g => g.Id)
+                .ToHashSet();
+            var payload = DrawDocument.FromJson(new DrawDocument
+            {
+                Elements = SelectedElements.ToList(),
+                Groups = Document.Groups.Where(g => includedGroups.Contains(g.Id)).ToList(),
+            }.ToJson());
+            foreach (var el in payload.Elements)
+                if (el.GroupId is Guid g && !includedGroups.Contains(g))
+                    el.GroupId = null;
+            foreach (var g in payload.Groups)
+                if (g.ParentId is Guid pid && !includedGroups.Contains(pid))
+                    g.ParentId = null;
+            await SetClipboardTextAsync(payload.ToJson());
+            SelectionStatus = $"Copied {payload.Elements.Count} elements";
+        }
+
+        [RelayCommand]
+        private async Task Paste()
+        {
+            var clipboard = Clipboard;
+            if (clipboard == null)
+                return;
+            string? text = null;
+            using (var data = await clipboard.TryGetDataAsync())
+            {
+                if (data != null)
+                    text = await data.TryGetTextAsync();
+            }
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+            DrawDocument payload;
+            try
+            {
+                payload = DrawDocument.FromJson(text);
+            }
+            catch (JsonException)
+            {
+                SelectionStatus = "Clipboard has no AsciiDraw content";
+                return;
+            }
+            if (payload.Elements.Count == 0)
+                return;
+
+            PushUndo();
+            var groupMap = payload.Groups.ToDictionary(g => g.Id, _ => Guid.NewGuid());
+            var elementMap = payload.Elements.ToDictionary(e => e.Id, _ => Guid.NewGuid());
+            var usedElementNames = Document.Elements.Select(e => e.Name).ToHashSet();
+            var usedGroupNames = Document.Groups.Select(g => g.Name).ToHashSet();
+
+            foreach (var g in payload.Groups)
+            {
+                g.Id = groupMap[g.Id];
+                g.ParentId = g.ParentId is Guid pid && groupMap.TryGetValue(pid, out var np)
+                    ? np
+                    : null;
+                g.Name = UniqueName(g.Name, usedGroupNames);
+            }
+            foreach (var el in payload.Elements)
+            {
+                el.Id = elementMap[el.Id];
+                el.GroupId = el.GroupId is Guid gid && groupMap.TryGetValue(gid, out var ng)
+                    ? ng
+                    : null;
+                el.Name = UniqueName(el.Name, usedElementNames);
+                el.Translate(2, 2);
+                if (el is LineElement l)
+                {
+                    l.StartLink = l.StartLink is Guid s && elementMap.TryGetValue(s, out var ns)
+                        ? ns
+                        : null;
+                    l.EndLink = l.EndLink is Guid t && elementMap.TryGetValue(t, out var nt)
+                        ? nt
+                        : null;
+                }
+            }
+
+            Document.Groups.AddRange(payload.Groups);
+            Document.Elements.AddRange(payload.Elements);
+            SyncLinkedLines();
+            SetSelection(payload.Elements.Select(e => e.Id));
+            NotifyStructureChanged();
+            SelectionStatus = $"Pasted {payload.Elements.Count} elements";
+        }
+
+        /// <summary>"xyz" stays "xyz" when free; otherwise becomes "xyz (2)", "xyz (3)", …
+        /// (an existing " (n)" suffix counts as part of the base "xyz").</summary>
+        private static string UniqueName(string name, HashSet<string> used)
+        {
+            if (used.Add(name))
+                return name;
+            var baseName = System.Text.RegularExpressions.Regex.Replace(name, @" \(\d+\)$", "");
+            for (int n = 2; ; n++)
+            {
+                var candidate = $"{baseName} ({n})";
+                if (used.Add(candidate))
+                    return candidate;
+            }
         }
 
         [RelayCommand]
