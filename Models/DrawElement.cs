@@ -231,5 +231,8 @@ namespace AsciiDraw.Models
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public string Name { get; set; } = "";
+
+        /// <summary>Groups form a tree: a group may itself belong to a parent group.</summary>
+        public Guid? ParentId { get; set; }
     }
 }

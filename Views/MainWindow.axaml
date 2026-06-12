@@ -170,7 +170,8 @@
                 <TextBlock DockPanel.Dock="Top" Text="Layers" FontWeight="SemiBold" FontSize="12"
                            Margin="12,10,12,6" Foreground="#444"/>
                 <ListBox x:Name="LayerList" ItemsSource="{Binding Layers}" SelectionMode="Multiple"
-                         Background="Transparent" Padding="4,0">
+                         Background="Transparent" Padding="4,0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LayerItem">
                             <StackPanel Orientation="Horizontal" Margin="{Binding Margin}" Spacing="7">
@@ -220,6 +221,12 @@
 
                     <TextBlock Text="{Binding SelectionHeader}" IsVisible="{Binding ShowPlaceholder}"
                                Foreground="#999" FontSize="13" HorizontalAlignment="Center" Margin="0,50,0,0"/>
+
+                    <!-- Group properties -->
+                    <StackPanel IsVisible="{Binding IsGroupSelected}" Spacing="2">
+                        <TextBlock Classes="label" Text="Group Name"/>
+                        <TextBox Text="{Binding SelGroupName}" FontSize="12"/>
+                    </StackPanel>
 
                     <!-- Rectangle / text box properties -->
                     <StackPanel IsVisible="{Binding IsRectSelected}" Spacing="2">

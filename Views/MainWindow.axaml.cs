@@ -194,9 +194,7 @@ namespace AsciiDraw.Views
                 foreach (var li in _vm.Layers)
                 {
                     bool selected = li.IsGroup
-                        ? _vm.Document.Elements.Any(el => el.GroupId == li.Id) &&
-                          _vm.Document.Elements.Where(el => el.GroupId == li.Id)
-                              .All(el => _vm.Selection.Contains(el.Id))
+                        ? _vm.IsGroupFullySelected(li.Id)
                         : _vm.Selection.Contains(li.Id);
                     if (selected)
                         items.Add(li);

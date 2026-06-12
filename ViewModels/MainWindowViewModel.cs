@@ -110,7 +110,34 @@ namespace AsciiDraw.ViewModels
 
         public bool IsRectSelected => SingleRect != null;
         public bool IsLineSelected => SingleLine != null;
-        public bool ShowPlaceholder => SingleSelected == null;
+        public bool IsGroupSelected => SingleSelected == null && SelectedGroup != null;
+        public bool ShowPlaceholder => SingleSelected == null && SelectedGroup == null;
+
+        /// <summary>The deepest group whose subtree is exactly the current selection,
+        /// i.e. what the user gets by clicking a group (header or on canvas).</summary>
+        public GroupInfo? SelectedGroup
+        {
+            get
+            {
+                if (Selection.Count == 0)
+                    return null;
+                GroupInfo? best = null;
+                int bestDepth = -1;
+                foreach (var g in Document.Groups)
+                {
+                    var ids = SubtreeElements(g.Id).Select(e => e.Id).ToList();
+                    if (ids.Count != Selection.Count || !ids.All(Selection.Contains))
+                        continue;
+                    int depth = AncestorGroups(g.Id).Count();
+                    if (depth > bestDepth)
+                    {
+                        best = g;
+                        bestDepth = depth;
+                    }
+                }
+                return best;
+            }
+        }
 
         public string SelectionHeader => Selection.Count switch
         {
@@ -145,11 +172,55 @@ namespace AsciiDraw.ViewModels
             NotifySelectionChanged();
         }
 
+        // ----- Group tree helpers -----
+        // Groups form a tree: GroupInfo.ParentId points at the parent group, and
+        // elements carry the id of their *immediate* group.
+
+        private GroupInfo? FindGroup(Guid id) => Document.Groups.FirstOrDefault(g => g.Id == id);
+
+        /// <summary>Group chain from the immediate group up to the root.</summary>
+        private IEnumerable<Guid> AncestorGroups(Guid? groupId)
+        {
+            var seen = new HashSet<Guid>();
+            while (groupId is Guid g && seen.Add(g))
+            {
+                yield return g;
+                groupId = FindGroup(g)?.ParentId;
+            }
+        }
+
+        private Guid? RootGroupOf(DrawElement el)
+        {
+            Guid? root = null;
+            foreach (var g in AncestorGroups(el.GroupId))
+                root = g;
+            return root;
+        }
+
+        private bool IsInSubtree(Guid? groupId, Guid ancestor) =>
+            AncestorGroups(groupId).Contains(ancestor);
+
+        /// <summary>All elements inside a group, including nested groups, in z-order.</summary>
+        public IEnumerable<DrawElement> SubtreeElements(Guid groupId) =>
+            Document.Elements.Where(e => IsInSubtree(e.GroupId, groupId));
+
+        public bool IsGroupFullySelected(Guid groupId)
+        {
+            bool any = false;
+            foreach (var el in SubtreeElements(groupId))
+            {
+                any = true;
+                if (!Selection.Contains(el.Id))
+                    return false;
+            }
+            return any;
+        }
+
         /// <summary>Returns the ids that should be selected when this element is clicked
-        /// (the whole group when the element belongs to one).</summary>
+        /// (the whole root group when the element belongs to one).</summary>
         public IReadOnlyList<Guid> ExpandToGroup(DrawElement el) =>
-            el.GroupId is Guid g
-                ? Document.Elements.Where(e => e.GroupId == g).Select(e => e.Id).ToList()
+            RootGroupOf(el) is Guid root
+                ? SubtreeElements(root).Select(e => e.Id).ToList()
                 : new List<Guid> { el.Id };
 
         public void SelectFromLayers(IEnumerable<LayerItem> items)
@@ -158,7 +229,7 @@ namespace AsciiDraw.ViewModels
             foreach (var li in items)
             {
                 if (li.IsGroup)
-                    foreach (var el in Document.Elements.Where(e => e.GroupId == li.Id))
+                    foreach (var el in SubtreeElements(li.Id))
                         ids.Add(el.Id);
                 else
                     ids.Add(li.Id);
@@ -194,8 +265,10 @@ namespace AsciiDraw.ViewModels
         {
             OnPropertyChanged(nameof(IsRectSelected));
             OnPropertyChanged(nameof(IsLineSelected));
+            OnPropertyChanged(nameof(IsGroupSelected));
             OnPropertyChanged(nameof(ShowPlaceholder));
             OnPropertyChanged(nameof(SelectionHeader));
+            OnPropertyChanged(nameof(SelGroupName));
             OnPropertyChanged(nameof(SelName));
             OnPropertyChanged(nameof(SelBorderStyle));
             OnPropertyChanged(nameof(SelFill));
@@ -458,45 +531,85 @@ namespace AsciiDraw.ViewModels
         [RelayCommand]
         private void GroupSelected()
         {
-            var sel = SelectedElements.ToList();
-            if (sel.Count < 2)
+            // The units being grouped: whole root groups (which become children of
+            // the new group, preserving their subtree) and loose elements. A
+            // partially selected group is pulled in completely.
+            var rootGroups = new HashSet<Guid>();
+            var loose = new List<DrawElement>();
+            foreach (var el in SelectedElements)
+            {
+                if (RootGroupOf(el) is Guid root)
+                    rootGroups.Add(root);
+                else
+                    loose.Add(el);
+            }
+            if (rootGroups.Count + loose.Count < 2)
                 return;
             PushUndo();
             var group = new GroupInfo { Name = $"Group {Document.Groups.Count + 1}" };
             Document.Groups.Add(group);
-            foreach (var el in sel)
+            foreach (var rootId in rootGroups)
+                FindGroup(rootId)!.ParentId = group.Id;
+            foreach (var el in loose)
                 el.GroupId = group.Id;
-            // Keep group members contiguous in z-order, anchored at the topmost member.
-            int topIndex = Document.Elements.FindLastIndex(e => sel.Contains(e));
-            Document.Elements.RemoveAll(e => sel.Contains(e));
-            int insertAt = Math.Min(topIndex - (sel.Count - 1), Document.Elements.Count);
-            Document.Elements.InsertRange(Math.Max(0, insertAt), sel);
+            // Keep the new group's elements contiguous in z-order, anchored at the
+            // topmost member; relative order (and nested blocks) are preserved.
+            var members = Document.Elements.Where(e => IsInSubtree(e.GroupId, group.Id)).ToList();
+            int topIndex = Document.Elements.FindLastIndex(e => members.Contains(e));
+            Document.Elements.RemoveAll(e => members.Contains(e));
+            int insertAt = Math.Min(topIndex - (members.Count - 1), Document.Elements.Count);
+            Document.Elements.InsertRange(Math.Max(0, insertAt), members);
             RemoveEmptyGroups();
+            SetSelection(members.Select(m => m.Id));
             NotifyStructureChanged();
         }
 
         [RelayCommand]
         private void UngroupSelected()
         {
-            var sel = SelectedElements.Where(e => e.GroupId != null).ToList();
-            if (sel.Count == 0)
+            // Dissolves the root group(s) covering the selection by one level:
+            // their child groups and direct elements become top-level.
+            var roots = new HashSet<Guid>();
+            foreach (var el in SelectedElements)
+                if (RootGroupOf(el) is Guid root)
+                    roots.Add(root);
+            if (roots.Count == 0)
                 return;
             PushUndo();
-            foreach (var el in sel)
-                el.GroupId = null;
+            foreach (var rootId in roots)
+            {
+                foreach (var child in Document.Groups.Where(g => g.ParentId == rootId))
+                    child.ParentId = null;
+                foreach (var el in Document.Elements.Where(e => e.GroupId == rootId))
+                    el.GroupId = null;
+                Document.Groups.RemoveAll(g => g.Id == rootId);
+            }
             RemoveEmptyGroups();
             NotifyStructureChanged();
         }
 
         private void RemoveEmptyGroups()
         {
-            Document.Groups.RemoveAll(g => Document.Elements.All(e => e.GroupId != g.Id));
+            bool removed;
+            do
+            {
+                removed = false;
+                foreach (var g in Document.Groups.ToList())
+                {
+                    if (Document.Elements.Any(e => e.GroupId == g.Id) ||
+                        Document.Groups.Any(c => c.ParentId == g.Id))
+                        continue;
+                    Document.Groups.Remove(g);
+                    removed = true;
+                }
+            } while (removed);
         }
 
-        /// <summary>Moves a dragged layer row (element or whole group) to the gap above
-        /// layer row <paramref name="gapRow"/> (Layers.Count = below the last row).
-        /// An element dropped strictly inside a group's block joins that group; one
-        /// dragged out of its group leaves it. Groups never nest.</summary>
+        /// <summary>Moves a dragged layer row (element or whole group subtree) to the
+        /// gap above layer row <paramref name="gapRow"/> (Layers.Count = below the
+        /// last row). The dropped unit joins the deepest group that encloses both of
+        /// its new neighbors (null at top level), so dragging into a group's block
+        /// nests, and dragging out un-nests.</summary>
         public void ReorderLayers(LayerItem dragged, int gapRow)
         {
             // Elements in displayed order (topmost first), with the visual position of
@@ -517,7 +630,7 @@ namespace AsciiDraw.ViewModels
             int insertAt = gapToVisual[Math.Clamp(gapRow, 0, Layers.Count)];
 
             var block = dragged.IsGroup
-                ? visual.Where(e => e.GroupId == dragged.Id).ToList()
+                ? visual.Where(e => IsInSubtree(e.GroupId, dragged.Id)).ToList()
                 : visual.Where(e => e.Id == dragged.Id).ToList();
             if (block.Count == 0)
                 return;
@@ -526,31 +639,38 @@ namespace AsciiDraw.ViewModels
             var rest = visual.Where(e => !block.Contains(e)).ToList();
             int pos = Math.Clamp(insertAt - removedBefore, 0, rest.Count);
 
+            // The deepest group containing both neighbors of the insertion point.
             var above = pos > 0 ? rest[pos - 1] : null;
             var below = pos < rest.Count ? rest[pos] : null;
-            Guid? targetGroup = above?.GroupId != null && above.GroupId == below?.GroupId
-                ? above.GroupId
-                : null;
-
-            if (dragged.IsGroup && targetGroup != null)
+            Guid? targetGroup = null;
+            if (above != null && below != null)
             {
-                // Groups don't nest: drop below the surrounding block instead.
-                while (pos < rest.Count && rest[pos].GroupId == targetGroup)
-                    pos++;
-                targetGroup = null;
+                var belowChain = AncestorGroups(below.GroupId).ToHashSet();
+                targetGroup = AncestorGroups(above.GroupId)
+                    .Where(belowChain.Contains)
+                    .Cast<Guid?>()
+                    .FirstOrDefault();
             }
 
-            Guid? newGroupId = dragged.IsGroup ? block[0].GroupId : targetGroup;
-            bool groupChanges = !dragged.IsGroup && block[0].GroupId != newGroupId;
+            Guid? oldParent = dragged.IsGroup ? FindGroup(dragged.Id)?.ParentId : block[0].GroupId;
+            bool parentChanges = oldParent != targetGroup;
 
             var newVisual = new List<DrawElement>(rest);
             newVisual.InsertRange(pos, block);
-            if (!groupChanges && newVisual.SequenceEqual(visual))
+            if (!parentChanges && newVisual.SequenceEqual(visual))
                 return;
 
             PushUndo();
-            if (!dragged.IsGroup)
-                block[0].GroupId = newGroupId;
+            if (dragged.IsGroup)
+            {
+                var g = FindGroup(dragged.Id);
+                if (g != null)
+                    g.ParentId = targetGroup;
+            }
+            else
+            {
+                block[0].GroupId = targetGroup;
+            }
             Document.Elements.Clear();
             for (int i = newVisual.Count - 1; i >= 0; i--)
                 Document.Elements.Add(newVisual[i]);
@@ -563,43 +683,58 @@ namespace AsciiDraw.ViewModels
         public void RebuildLayers()
         {
             Layers.Clear();
-            var emitted = new HashSet<Guid>();
-            for (int i = Document.Elements.Count - 1; i >= 0; i--)
-            {
-                var el = Document.Elements[i];
-                if (emitted.Contains(el.Id))
-                    continue;
-                if (el.GroupId is Guid gid)
-                {
-                    var group = Document.Groups.FirstOrDefault(g => g.Id == gid);
-                    Layers.Add(new LayerItem
-                    {
-                        Id = gid,
-                        IsGroup = true,
-                        Icon = "▣",
-                        Name = group?.Name ?? "Group",
-                        Margin = new Thickness(0),
-                    });
-                    for (int j = i; j >= 0; j--)
-                    {
-                        var member = Document.Elements[j];
-                        if (member.GroupId == gid)
-                        {
-                            Layers.Add(MakeLayerItem(member, indented: true));
-                            emitted.Add(member.Id);
-                        }
-                    }
-                }
-                else
-                {
-                    Layers.Add(MakeLayerItem(el, indented: false));
-                    emitted.Add(el.Id);
-                }
-            }
+            EmitLayerScope(null, 0);
             LayersRebuilt?.Invoke();
         }
 
-        private static LayerItem MakeLayerItem(DrawElement el, bool indented) => new()
+        /// <summary>Emits the rows of one tree level: the child groups and direct
+        /// elements of <paramref name="parentId"/>, topmost first (a group sorts by
+        /// its topmost subtree element), recursing into each group.</summary>
+        private void EmitLayerScope(Guid? parentId, int depth)
+        {
+            var units = new List<(int TopIndex, GroupInfo? Group, DrawElement? Element)>();
+            foreach (var g in Document.Groups.Where(g => g.ParentId == parentId))
+            {
+                int top = -1;
+                for (int i = Document.Elements.Count - 1; i >= 0; i--)
+                {
+                    if (IsInSubtree(Document.Elements[i].GroupId, g.Id))
+                    {
+                        top = i;
+                        break;
+                    }
+                }
+                if (top >= 0)
+                    units.Add((top, g, null));
+            }
+            for (int i = 0; i < Document.Elements.Count; i++)
+            {
+                if (Document.Elements[i].GroupId == parentId)
+                    units.Add((i, null, Document.Elements[i]));
+            }
+
+            foreach (var unit in units.OrderByDescending(u => u.TopIndex))
+            {
+                if (unit.Group != null)
+                {
+                    Layers.Add(new LayerItem
+                    {
+                        Id = unit.Group.Id,
+                        IsGroup = true,
+                        Icon = "▣",
+                        Name = unit.Group.Name,
+                        Margin = new Thickness(depth * 18, 0, 0, 0),
+                    });
+                    EmitLayerScope(unit.Group.Id, depth + 1);
+                }
+                else
+                {
+                    Layers.Add(MakeLayerItem(unit.Element!, depth));
+                }
+            }
+        }
+
+        private static LayerItem MakeLayerItem(DrawElement el, int depth) => new()
         {
             Id = el.Id,
             IsGroup = false,
@@ -610,7 +745,7 @@ namespace AsciiDraw.ViewModels
                 _ => "╱",
             },
             Name = el.Name,
-            Margin = new Thickness(indented ? 18 : 0, 0, 0, 0),
+            Margin = new Thickness(depth * 18, 0, 0, 0),
         };
 
         // ----- Properties panel proxies -----
@@ -621,6 +756,23 @@ namespace AsciiDraw.ViewModels
         public string[] ArrowStyles { get; } = { "None", "Triangle" };
         public string[] VAligns { get; } = { "Top", "Center", "Bottom" };
         public string[] HAligns { get; } = { "Left", "Center", "Right" };
+
+        public string? SelGroupName
+        {
+            get => SelectedGroup?.Name;
+            set
+            {
+                var g = SelectedGroup;
+                if (g == null || value == null || g.Name == value)
+                    return;
+                PushUndo("gname:" + g.Id);
+                g.Name = value;
+                var li = Layers.FirstOrDefault(l => l.IsGroup && l.Id == g.Id);
+                if (li != null)
+                    li.Name = value;
+                NotifyDocumentChanged();
+            }
+        }
 
         public string? SelName
         {
