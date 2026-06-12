@@ -56,9 +56,15 @@
         <!-- Toolbar -->
         <Border DockPanel.Dock="Top" Background="#F3F3F3" BorderBrush="#D0D0D0" BorderThickness="0,0,0,1">
             <DockPanel Margin="8,6">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Opaque background + ZIndex so the zoom control covers the tool
+                     buttons instead of blending when the window is too narrow; the
+                     panel stretches to the full toolbar height so no button edges
+                     peek out above or below it. -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            ZIndex="1" Background="#F3F3F3">
                     <ComboBox ItemsSource="{Binding ZoomItems}" SelectedItem="{Binding ZoomText}"
-                              FontSize="12" MinWidth="80"/>
+                              FontSize="12" MinWidth="80" Margin="6,0,0,0" Background="#FFFFFF"
+                              VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <Button Classes="tb" Command="{Binding NewFileCommand}" ToolTip.Tip="New (Ctrl+N)">
