@@ -23,7 +23,7 @@ namespace AsciiDraw.Models
             var sb = new StringBuilder();
             for (int y = minY; y <= maxY; y++)
             {
-                sb.AppendLine(grid.RowString(y).Substring(minX, maxX - minX + 1).TrimEnd());
+                sb.AppendLine(grid.RowString(y, minX, maxX - minX + 1).TrimEnd());
             }
             return sb.ToString();
         }
@@ -52,14 +52,14 @@ namespace AsciiDraw.Models
                 SvgFontFamily, fontSize));
             for (int y = minY; y <= maxY; y++)
             {
-                string line = grid.RowString(y).Substring(minX, cols).TrimEnd();
+                string line = grid.RowString(y, minX, cols).TrimEnd();
                 if (line.Length == 0)
                     continue;
                 double tx = cw;
                 double ty = (y - minY + 1) * ch + fontSize * 0.8;
                 sb.AppendLine(string.Format(ci,
                     "<text x=\"{0:0.##}\" y=\"{1:0.##}\" textLength=\"{2:0.##}\">{3}</text>",
-                    tx, ty, line.Length * cw, EscapeXml(line)));
+                    tx, ty, CharGrid.DisplayWidth(line) * cw, EscapeXml(line)));
             }
             sb.AppendLine("</g>");
             sb.AppendLine("</svg>");
@@ -90,7 +90,7 @@ namespace AsciiDraw.Models
                 ctx.FillRectangle(Brushes.White, new Rect(0, 0, size.Width, size.Height));
                 for (int y = minY; y <= maxY; y++)
                 {
-                    string line = grid.RowString(y).Substring(minX, cols).TrimEnd();
+                    string line = grid.RowString(y, minX, cols).TrimEnd();
                     if (line.Length == 0)
                         continue;
                     var ft = new FormattedText(line, CultureInfo.InvariantCulture,

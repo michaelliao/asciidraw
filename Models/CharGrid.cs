@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 
 namespace AsciiDraw.Models
 {
@@ -13,26 +15,150 @@ namespace AsciiDraw.Models
     {
         public int Cols { get; }
         public int Rows { get; }
-        private readonly char[] _cells;
+
+        // Each cell holds the display text for one grid column: " " when empty, a
+        // single box/ASCII char, a full wide grapheme (CJK/emoji, two columns wide)
+        // in its first column, or "" (continuation) in the wide grapheme's second
+        // column. Keeping a wide glyph to two columns is what keeps borders aligned.
+        private readonly string[] _cells;
+        private const string Space = " ";
+        private const string Cont = "";
 
         public CharGrid(int cols, int rows)
         {
             Cols = cols;
             Rows = rows;
-            _cells = new char[cols * rows];
-            Array.Fill(_cells, ' ');
+            _cells = new string[cols * rows];
+            Array.Fill(_cells, Space);
         }
 
-        public void Set(int x, int y, char c)
+        public void Set(int x, int y, char c) =>
+            PutGlyph(x, y, c == ' ' ? Space : c.ToString());
+
+        public char Get(int x, int y)
         {
-            if (x >= 0 && x < Cols && y >= 0 && y < Rows)
-                _cells[y * Cols + x] = c;
+            if (x < 0 || x >= Cols || y < 0 || y >= Rows)
+                return ' ';
+            var c = _cells[y * Cols + x];
+            return c.Length == 1 ? c[0] : ' ';
         }
 
-        public char Get(int x, int y) =>
-            x >= 0 && x < Cols && y >= 0 && y < Rows ? _cells[y * Cols + x] : ' ';
+        public string RowString(int y) => RowString(y, 0, Cols);
 
-        public string RowString(int y) => new string(_cells, y * Cols, Cols);
+        /// <summary>Display text for a column range of a row. A wide grapheme's
+        /// continuation column contributes nothing, so the rendered width of the
+        /// result matches the number of grid columns it covers.</summary>
+        public string RowString(int y, int startCol, int colCount)
+        {
+            if (y < 0 || y >= Rows)
+                return "";
+            var sb = new StringBuilder(colCount);
+            int end = Math.Min(Cols, startCol + colCount);
+            for (int x = Math.Max(0, startCol); x < end; x++)
+            {
+                var c = _cells[y * Cols + x];
+                if (c.Length == 0)
+                {
+                    // Right half of a wide glyph whose left half is clipped out of range.
+                    if (x == startCol)
+                        sb.Append(' ');
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            return sb.ToString();
+        }
+
+        // ----- Wide-character aware cell writes -----
+
+        /// <summary>Places a grapheme at a column, consuming a second column when the
+        /// grapheme is wide and repairing any wide glyph it partly overwrites.</summary>
+        private void PutGlyph(int x, int y, string glyph)
+        {
+            if (x < 0 || y < 0 || x >= Cols || y >= Rows)
+                return;
+            int w = GraphemeWidth(glyph);
+            if (w == 2 && x + 1 >= Cols)
+            {
+                // No room for the second half: drop it rather than overflow the grid.
+                ClearCell(x, y);
+                return;
+            }
+            ClearCell(x, y);
+            if (w == 2)
+                ClearCell(x + 1, y);
+            _cells[y * Cols + x] = glyph;
+            if (w == 2)
+                _cells[y * Cols + x + 1] = Cont;
+        }
+
+        /// <summary>Resets a column to a space, repairing the other half of any wide
+        /// glyph it belonged to.</summary>
+        private void ClearCell(int x, int y)
+        {
+            if (x < 0 || x >= Cols || y < 0 || y >= Rows)
+                return;
+            int i = y * Cols + x;
+            var cur = _cells[i];
+            if (cur.Length == 0)
+            {
+                if (x - 1 >= 0)
+                    _cells[i - 1] = Space;   // kill the wide glyph's left half
+            }
+            else if (x + 1 < Cols && GraphemeWidth(cur) == 2)
+            {
+                _cells[i + 1] = Space;       // kill the wide glyph's right half
+            }
+            _cells[i] = Space;
+        }
+
+        // ----- Display-width helpers -----
+
+        public static IEnumerable<string> Graphemes(string s)
+        {
+            var e = StringInfo.GetTextElementEnumerator(s);
+            while (e.MoveNext())
+                yield return (string)e.Current;
+        }
+
+        /// <summary>Columns a single grapheme occupies (1 or 2).</summary>
+        public static int GraphemeWidth(string g)
+        {
+            foreach (var rune in g.EnumerateRunes())
+                return IsWide(rune.Value) ? 2 : 1;
+            return 1;
+        }
+
+        /// <summary>Total columns a string occupies when displayed.</summary>
+        public static int DisplayWidth(string s)
+        {
+            int w = 0;
+            foreach (var g in Graphemes(s))
+                w += GraphemeWidth(g);
+            return w;
+        }
+
+        /// <summary>Whether a code point renders two columns wide (East Asian
+        /// Wide/Fullwidth, plus common emoji and pictographs).</summary>
+        private static bool IsWide(int cp) =>
+            (cp >= 0x1100 && cp <= 0x115F) ||   // Hangul Jamo
+            (cp >= 0x2329 && cp <= 0x232A) ||   // angle brackets
+            (cp >= 0x2E80 && cp <= 0x303E) ||   // CJK radicals … symbols/punctuation
+            (cp >= 0x3041 && cp <= 0x33FF) ||   // kana, enclosed CJK, compatibility
+            (cp >= 0x3400 && cp <= 0x4DBF) ||   // CJK Ext A
+            (cp >= 0x4E00 && cp <= 0x9FFF) ||   // CJK Unified Ideographs
+            (cp >= 0xA000 && cp <= 0xA4CF) ||   // Yi
+            (cp >= 0xAC00 && cp <= 0xD7A3) ||   // Hangul syllables
+            (cp >= 0xF900 && cp <= 0xFAFF) ||   // CJK compatibility ideographs
+            (cp >= 0xFE10 && cp <= 0xFE19) ||   // vertical forms
+            (cp >= 0xFE30 && cp <= 0xFE6F) ||   // CJK compatibility forms
+            (cp >= 0xFF00 && cp <= 0xFF60) ||   // fullwidth forms
+            (cp >= 0xFFE0 && cp <= 0xFFE6) ||   // fullwidth signs
+            (cp >= 0x1F000 && cp <= 0x1FAFF) || // emoji, pictographs, tiles
+            (cp >= 0x2600 && cp <= 0x27BF) ||   // misc symbols & dingbats
+            (cp >= 0x20000 && cp <= 0x3FFFD);   // CJK Ext B–G
 
         public static CharGrid Render(DrawDocument doc)
         {
@@ -164,7 +290,7 @@ namespace AsciiDraw.Models
             if (ownKey == 0)
                 return;
             int existing = ArmsOf(Get(x, y)) & keep;
-            Set(x, y, CharFor(MergeKeys(existing, ownKey)));
+            PutGlyph(x, y, CharFor(MergeKeys(existing, ownKey)).ToString());
         }
 
         private static int Weight(LineStyle s) => s switch
@@ -248,14 +374,21 @@ namespace AsciiDraw.Models
                     for (int i = 0; i < lines.Count; i++)
                     {
                         string ln = lines[i];
-                        int left = ix + Math.Max(0, r.HorizontalAlign switch
+                        int lineW = DisplayWidth(ln);
+                        int col = ix + Math.Max(0, r.HorizontalAlign switch
                         {
                             HAlign.Left => 0,
-                            HAlign.Right => iw - ln.Length,
-                            _ => (iw - ln.Length) / 2,
+                            HAlign.Right => iw - lineW,
+                            _ => (iw - lineW) / 2,
                         });
-                        for (int j = 0; j < ln.Length && j < iw; j++)
-                            Set(left + j, top + i, ln[j]);
+                        foreach (var g in Graphemes(ln))
+                        {
+                            int gw = GraphemeWidth(g);
+                            if (col + gw > ix + iw)
+                                break;   // would cross the interior's right edge
+                            PutGlyph(col, top + i, g);
+                            col += gw;
+                        }
                     }
                 }
             }
@@ -268,37 +401,58 @@ namespace AsciiDraw.Models
                 return result;
             foreach (var raw in text.Replace("\r", "").Split('\n'))
             {
-                if (raw.Length <= width)
+                if (DisplayWidth(raw) <= width)
                 {
                     result.Add(raw);
                     continue;
                 }
-                string cur = "";
+                var cur = new StringBuilder();
+                int curW = 0;
                 foreach (var word in raw.Split(' '))
                 {
-                    var w = word;
-                    // Hard-break words longer than the available width.
-                    while (w.Length > width)
+                    int wordW = DisplayWidth(word);
+                    // Hard-break words wider than the line, on grapheme boundaries.
+                    if (wordW > width)
                     {
-                        if (cur.Length > 0)
+                        if (curW > 0)
                         {
-                            result.Add(cur);
-                            cur = "";
+                            result.Add(cur.ToString());
+                            cur.Clear();
+                            curW = 0;
                         }
-                        result.Add(w[..width]);
-                        w = w[width..];
+                        foreach (var g in Graphemes(word))
+                        {
+                            int gw = GraphemeWidth(g);
+                            if (curW + gw > width && curW > 0)
+                            {
+                                result.Add(cur.ToString());
+                                cur.Clear();
+                                curW = 0;
+                            }
+                            cur.Append(g);
+                            curW += gw;
+                        }
+                        continue;
                     }
-                    if (cur.Length == 0)
-                        cur = w;
-                    else if (cur.Length + 1 + w.Length <= width)
-                        cur += " " + w;
+                    if (curW == 0)
+                    {
+                        cur.Append(word);
+                        curW = wordW;
+                    }
+                    else if (curW + 1 + wordW <= width)
+                    {
+                        cur.Append(' ').Append(word);
+                        curW += 1 + wordW;
+                    }
                     else
                     {
-                        result.Add(cur);
-                        cur = w;
+                        result.Add(cur.ToString());
+                        cur.Clear();
+                        cur.Append(word);
+                        curW = wordW;
                     }
                 }
-                result.Add(cur);
+                result.Add(cur.ToString());
             }
             return result;
         }
@@ -369,7 +523,7 @@ namespace AsciiDraw.Models
             int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
             for (int y = 0; y < Rows; y++)
                 for (int x = 0; x < Cols; x++)
-                    if (_cells[y * Cols + x] != ' ')
+                    if (_cells[y * Cols + x] != Space)
                     {
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
